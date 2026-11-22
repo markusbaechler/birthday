@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_large_label">Geburtstage: Heute und demnächst</string>
+    <string name="widget_large_description">Der nächste Geburtstag gross, dazu die drei folgenden.</string>
+    <string name="widget_small_label">Geburtstage: Nächster</string>
+    <string name="widget_small_description">Der nächste Geburtstag als grosse Zahl.</string>
+</resources>

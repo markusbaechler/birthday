@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/w_top"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif"
+        android:maxLines="1"
+        android:text="Marco · 45"
+        android:textColor="#9C95A8"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/w_number"
+        android:layout_width="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:autoSizeTextType="uniform"
+        android:autoSizeMinTextSize="24sp"
+        android:autoSizeMaxTextSize="72sp"
+        android:fontFamily="sans-serif-thin"
+        android:gravity="center_vertical"
+        android:includeFontPadding="false"
+        android:letterSpacing="-0.04"
+        android:maxLines="1"
+        android:text="5"
+        android:textColor="#8FB4E8"
+        android:textSize="60sp" />
+
+    <TextView
+        android:id="@+id/w_bottom"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif"
+        android:maxLines="1"
+        android:text="Tage, Freitag"
+        android:textColor="#CFC8DA"
+        android:textSize="13sp" />
+</LinearLayout>
