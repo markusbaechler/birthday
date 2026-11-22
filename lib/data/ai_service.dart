@@ -63,6 +63,7 @@ class AiService {
   /// Tried in order; the next one only when a model is not available.
   static const _models = ['claude-sonnet-5-5', 'claude-sonnet-4-5'];
   static var _model = _models.first;
+  static var _bearer = true;
   static const _endpoint = 'https://api.anthropic.com/v1/messages';
 
   static const _system = '''
@@ -229,23 +230,32 @@ Regeln: Motive nur aus den Angaben (Insider, Notizen, Beziehung, Alter, Gruss). 
   static Future<http.Response> _post(String key, Map<String, Object?> body,
       {Duration timeout = const Duration(seconds: 60)}) async {
     for (final model in [_model, ..._models.where((m) => m != _model)]) {
-      final http.Response res;
-      try {
-        res = await http
-            .post(
-              Uri.parse(_endpoint),
-              headers: {
-                'x-api-key': key.trim(),
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json',
-              },
-              body: jsonEncode({'model': model, ...body}),
-            )
-            .timeout(timeout);
-      } catch (e) {
-        throw AiException('Keine Verbindung zur KI ($e).');
+      http.Response? res;
+      // Newer keys (sk-ant-usr-…) are documented with «Authorization:
+      // Bearer», older ones with «x-api-key». Try the remembered one first.
+      for (final bearer in [_bearer, !_bearer]) {
+        try {
+          res = await http
+              .post(
+                Uri.parse(_endpoint),
+                headers: {
+                  if (bearer) 'authorization': 'Bearer ${key.trim()}'
+                  else 'x-api-key': key.trim(),
+                  'anthropic-version': '2023-06-01',
+                  'content-type': 'application/json',
+                },
+                body: jsonEncode({'model': model, ...body}),
+              )
+              .timeout(timeout);
+        } catch (e) {
+          throw AiException('Keine Verbindung zur KI ($e).');
+        }
+        if (res.statusCode != 401) {
+          _bearer = bearer;
+          break;
+        }
       }
-      if (res.statusCode == 200) {
+      if (res!.statusCode == 200) {
         _model = model;
         return res;
       }
@@ -269,7 +279,7 @@ Regeln: Motive nur aus den Angaben (Insider, Notizen, Beziehung, Alter, Gruss). 
 
   static String _explain(int status, String reason) {
     final r = reason.toLowerCase();
-    if (status == 401) return 'Der Schlüssel wird nicht akzeptiert (401). Neu kopieren, ohne Leerzeichen.';
+    if (status == 401) return 'Der Schlüssel wird nicht akzeptiert (401): ${reason.isEmpty ? 'ungültig' : reason}. Neu kopieren, ohne Leerzeichen.';
     if (status == 403) return 'Der Schlüssel hat keine Berechtigung (403): $reason';
     if (r.contains('credit') || r.contains('billing')) {
       return 'Kein Guthaben in der Console. Unter Billing Guthaben laden, dann klappt es.';
