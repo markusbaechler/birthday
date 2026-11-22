@@ -37,7 +37,7 @@ ThemeData buildTheme() {
         foregroundColor: Nl.onAccent,
         minimumSize: const Size.fromHeight(52),
         shape: const StadiumBorder(),
-        textStyle: Nl.button,
+        textStyle: Nl.button.copyWith(fontFamily: 'Roboto'),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -46,14 +46,14 @@ ThemeData buildTheme() {
         minimumSize: const Size(44, 52),
         side: const BorderSide(color: Nl.borderControl),
         shape: const StadiumBorder(),
-        textStyle: Nl.button.copyWith(fontWeight: FontWeight.w400),
+        textStyle: Nl.button.copyWith(fontWeight: FontWeight.w400, fontFamily: 'Roboto'),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: Nl.inkSoft,
         minimumSize: const Size(44, 44),
-        textStyle: Nl.bodySmall,
+        textStyle: Nl.bodySmall.copyWith(fontFamily: 'Roboto'),
       ),
     ),
     inputDecorationTheme: const InputDecorationTheme(

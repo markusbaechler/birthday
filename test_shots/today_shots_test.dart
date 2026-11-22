@@ -1,5 +1,6 @@
 // Renders real screens to PNG (build/shots) so the design can be checked
 // before a build goes to the phone. Not part of the normal test run.
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -202,6 +203,12 @@ void main() {
         final f = File('build/tmp/card.png')..createSync(recursive: true);
         f.writeAsBytesSync(png!.buffer.asUint8List());
         imagePath = f.absolute.path;
+        // Decode now, outside the fake clock, so the editor finds it cached.
+        final done = Completer<void>();
+        FileImage(File(imagePath!)).resolve(ImageConfiguration.empty).addListener(
+            ImageStreamListener((_, __) => done.complete(),
+                onError: (e, s) => done.completeError(e)));
+        await done.future;
       });
     }
     // The database lives in the test zone, so pumping drives its futures.
@@ -245,13 +252,7 @@ void main() {
     final (db, person) = await seed(tester, withImage: true);
     await _shot(tester, '05_gruss_mit_bild',
         GreetingEditor(person: person, autoGenerate: false),
-        nav: -1, db: db, height: 4400, before: (tester) async {
-      await tester.pump(const Duration(milliseconds: 200));
-      final ctx = tester.element(find.byType(GreetingEditor));
-      await tester.runAsync(() => precacheImage(
-          FileImage(File('build/tmp/card.png').absolute), ctx));
-      await tester.pump();
-    });
+        nav: -1, db: db, height: 4400);
     await db.close();
   });
 }
