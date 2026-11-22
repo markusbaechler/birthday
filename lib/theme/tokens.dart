@@ -45,15 +45,43 @@ abstract final class Nl {
   static const rXl = 28.0;
 
   // Type
+  /// Display face with character: Fraunces (variable, soft optical sizes).
+  static const displayFamily = 'Fraunces';
+
+  /// Display text in Fraunces. [weight] drives the variable axis.
+  static TextStyle display(double size,
+          {double weight = 300, Color color = ink, double? height, double? spacing}) =>
+      TextStyle(
+        fontFamily: displayFamily,
+        fontSize: size,
+        height: height,
+        letterSpacing: spacing,
+        color: color,
+        fontVariations: [
+          FontVariation('wght', weight),
+          FontVariation('opsz', size.clamp(9, 144).toDouble()),
+          const FontVariation('SOFT', 100),
+        ],
+      );
+
   static const countdown = TextStyle(
-      fontSize: 160, height: 136 / 160, fontWeight: FontWeight.w200,
-      letterSpacing: -6, fontFeatures: [FontFeature.tabularFigures()]);
+      fontFamily: displayFamily,
+      fontSize: 156, height: 136 / 156, fontWeight: FontWeight.w300,
+      letterSpacing: -4,
+      fontVariations: [
+        FontVariation('wght', 260),
+        FontVariation('opsz', 144),
+        FontVariation('SOFT', 100),
+      ],
+      fontFeatures: [FontFeature.liningFigures()]);
   static const draft = TextStyle(
       fontSize: 26, height: 36 / 26, fontWeight: FontWeight.w300, color: ink);
   static const numberList =
       TextStyle(fontSize: 26, height: 30 / 26, fontWeight: FontWeight.w300, color: ink);
-  static const title =
-      TextStyle(fontSize: 28, height: 34 / 28, fontWeight: FontWeight.w300, color: ink);
+  static const title = TextStyle(
+      fontFamily: displayFamily, fontSize: 28, height: 34 / 28,
+      fontWeight: FontWeight.w400, color: ink,
+      fontVariations: [FontVariation('wght', 360), FontVariation('opsz', 36), FontVariation('SOFT', 100)]);
   static const lead =
       TextStyle(fontSize: 20, height: 28 / 20, fontWeight: FontWeight.w300, color: inkSoft);
   static const body =

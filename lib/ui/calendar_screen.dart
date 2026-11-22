@@ -84,7 +84,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             Expanded(
               child: ListView(
                 controller: _scroll,
-                padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s4, Nl.s5, Nl.s6),
+                padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s4, Nl.s5, 120),
                 children: [
                   for (final m in months) ...[
                     _MonthHeader(key: m.key, month: m),
@@ -235,11 +235,7 @@ class _DayRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('${n.date.day}',
-                        style: TextStyle(
-                            fontSize: 30,
-                            height: 1,
-                            fontWeight: FontWeight.w200,
-                            color: color)),
+                        style: Nl.display(32, weight: 280, color: color, height: 1)),
                     const SizedBox(height: Nl.s1),
                     Text(formatShort(n.date).split(' ').first,
                         style: Nl.caption),

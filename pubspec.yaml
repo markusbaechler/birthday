@@ -19,6 +19,8 @@ dependencies:
   file_picker: ^13.4.1
   intl: any
   home_widget: ">=0.7.0 <2.0.0"
+  shared_preferences: ">=2.3.0 <4.0.0"
+  url_launcher: ">=6.3.0 <8.0.0"
 
 dev_dependencies:
   flutter_test:
@@ -30,6 +32,11 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    # Downloaded in CI from github.com/google/fonts (OFL), see build.yml
+    - family: Fraunces
+      fonts:
+        - asset: assets/fonts/Fraunces.ttf
 
 flutter_launcher_icons:
   android: "ic_launcher"

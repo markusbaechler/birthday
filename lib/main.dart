@@ -1,7 +1,11 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'data/database.dart';
+import 'data/photo_sync.dart';
 import 'data/widget_sync.dart';
 import 'theme/app_theme.dart';
 import 'ui/calendar_screen.dart';
@@ -14,6 +18,8 @@ void main() {
   final db = AppDatabase();
   WidgetSync(db).start();
   runApp(GeburtstageApp(db: db));
+  // Photos follow the contacts automatically, a moment after start.
+  Future.delayed(const Duration(seconds: 3), () => PhotoSync(db).run());
 }
 
 /// Gives every screen access to the database.
@@ -68,7 +74,9 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       body: SafeArea(
+        bottom: false,
         child: IndexedStack(
           index: _index,
           children: const [
@@ -79,22 +87,34 @@ class _HomeShellState extends State<HomeShell> {
           ],
         ),
       ),
-      bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: Color(0xFF1F1B25)))),
-        child: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
-          destinations: const [
-            NavigationDestination(
-                icon: Icon(Icons.cake_outlined), label: 'Heute'),
-            NavigationDestination(
-                icon: Icon(Icons.calendar_month_outlined), label: 'Kalender'),
-            NavigationDestination(
-                icon: Icon(Icons.people_outline), label: 'Personen'),
-            NavigationDestination(
-                icon: Icon(Icons.tune), label: 'Einstellungen'),
-          ],
+      // Frosted glass navigation: content glides underneath.
+      bottomNavigationBar: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: const Color(0xFF0E0C12).withValues(alpha: 0.72),
+              border: const Border(top: BorderSide(color: Color(0xFF1F1B25))),
+            ),
+            child: NavigationBar(
+              backgroundColor: Colors.transparent,
+              selectedIndex: _index,
+              onDestinationSelected: (i) {
+                HapticFeedback.selectionClick();
+                setState(() => _index = i);
+              },
+              destinations: const [
+                NavigationDestination(
+                    icon: Icon(Icons.cake_outlined), label: 'Heute'),
+                NavigationDestination(
+                    icon: Icon(Icons.calendar_month_outlined), label: 'Kalender'),
+                NavigationDestination(
+                    icon: Icon(Icons.people_outline), label: 'Personen'),
+                NavigationDestination(
+                    icon: Icon(Icons.tune), label: 'Einstellungen'),
+              ],
+            ),
+          ),
         ),
       ),
     );

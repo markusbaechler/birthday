@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/database.dart';
 import '../theme/tokens.dart';
+import 'art.dart';
 
 /// Versalien-Label, e.g. «DEMNÄCHST».
 class SectionLabel extends StatelessWidget {
@@ -39,42 +40,20 @@ class RingsPainter extends CustomPainter {
   bool shouldRepaint(RingsPainter old) => old.progress != progress;
 }
 
-/// Thin circle with initials or photo, in the person's colour.
+/// Person avatar in cookie shape with a hairline outline in the person's
+/// colour (photo or initials).
 class PersonRing extends StatelessWidget {
-  const PersonRing({super.key, required this.person, this.size = 36, this.today = false});
+  const PersonRing({super.key, required this.person, this.size = 40, this.today = false});
   final Person person;
   final double size;
   final bool today;
 
   @override
-  Widget build(BuildContext context) {
-    final color = Nl.personColor(person.colorIndex, today: today);
-    final initials = [person.firstName, person.lastName]
-        .where((s) => s.isNotEmpty)
-        .map((s) => s.characters.first.toUpperCase())
-        .take(2)
-        .join();
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: color, width: 1),
-      ),
-      padding: const EdgeInsets.all(2),
-      child: ClipOval(
-        child: person.photo != null
-            ? Image.memory(person.photo!, fit: BoxFit.cover, gaplessPlayback: true)
-            : Center(
-                child: Text(initials,
-                    style: TextStyle(
-                        color: color,
-                        fontSize: size * 0.33,
-                        fontWeight: FontWeight.w500)),
-              ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => CookieAvatar(
+        person: person,
+        size: size,
+        color: Nl.personColor(person.colorIndex, today: today),
+      );
 }
 
 /// Hero: a lead line, the big thin number and a caption, rings behind.

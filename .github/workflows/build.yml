@@ -39,6 +39,14 @@ jobs:
           rm -f test/widget_test.dart
           python3 tool/patch_android.py
 
+      - name: Fetch display font (Fraunces, OFL)
+        run: |
+          mkdir -p assets/fonts
+          curl -fsSL --retry 3 -o assets/fonts/Fraunces.ttf \
+            "https://github.com/google/fonts/raw/main/ofl/fraunces/Fraunces%5BSOFT,WONK,opsz,wght%5D.ttf"
+          test -s assets/fonts/Fraunces.ttf
+          ls -la assets/fonts
+
       - name: Install packages
         run: |
           flutter pub get

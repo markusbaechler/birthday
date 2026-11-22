@@ -20,3 +20,6 @@ build/
 .idea/
 .vscode/
 *.iml
+
+# Fonts are fetched in CI
+/assets/fonts/

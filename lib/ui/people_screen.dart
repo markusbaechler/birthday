@@ -39,7 +39,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
           for (final u in upcomingFor(shown, today)) u.person.id: u.next
         };
         return ListView(
-          padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s6, Nl.s5, Nl.s5),
+          padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s6, Nl.s5, 120),
           children: [
             Row(
               children: [

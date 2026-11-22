@@ -5,6 +5,7 @@ import '../domain/birthday.dart';
 import '../main.dart';
 import '../theme/tokens.dart';
 import 'format.dart';
+import 'art.dart';
 import 'motion.dart';
 import 'person_edit_screen.dart';
 import 'widgets.dart';
@@ -20,8 +21,7 @@ class PersonScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final db = AppScope.of(context);
     return Scaffold(
-      body: SafeArea(
-        child: StreamBuilder<Person?>(
+      body: StreamBuilder<Person?>(
           stream: db.watchPerson(personId),
           builder: (context, snapshot) {
             final p = snapshot.data;
@@ -33,7 +33,37 @@ class PersonScreen extends StatelessWidget {
                 today: DateTime.now());
             final color = Nl.personColor(p.colorIndex, today: n.isToday);
             final name = displayName(p);
-            return ListView(
+            return Stack(
+              children: [
+                // Photo (or colour light) behind the top, fading into the page.
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 420,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      PersonBackdrop(person: p, color: color),
+                      const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: [0.0, 0.45, 1.0],
+                            colors: [
+                              Color(0x660E0C12),
+                              Color(0x990E0C12),
+                              Nl.bg,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SafeArea(
+                  child: ListView(
               padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s5, Nl.s5, Nl.s6),
               children: [
                 Row(
@@ -87,10 +117,12 @@ class PersonScreen extends StatelessWidget {
                 const SizedBox(height: Nl.s5),
                 _Notes(personId: p.id),
               ],
+            ),
+                ),
+              ],
             );
           },
         ),
-      ),
     );
   }
 }

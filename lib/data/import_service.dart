@@ -27,6 +27,7 @@ class ImportService {
     final contacts = await FlutterContacts.getContacts(
       withProperties: true,
       withThumbnail: true,
+      withPhoto: true,
     );
     final result = <ContactEntry>[];
     for (final contact in contacts) {
@@ -52,7 +53,7 @@ class ImportService {
           phone: contact.phones.firstOrNull?.number,
           email: contact.emails.firstOrNull?.address,
         ),
-        contact.thumbnail,
+        contact.photo ?? contact.thumbnail,
       ));
     }
     return result;
