@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'data/database.dart';
 import 'data/widget_sync.dart';
 import 'theme/app_theme.dart';
+import 'ui/calendar_screen.dart';
 import 'ui/people_screen.dart';
 import 'ui/settings_screen.dart';
 import 'ui/today_screen.dart';
@@ -70,7 +71,12 @@ class _HomeShellState extends State<HomeShell> {
       body: SafeArea(
         child: IndexedStack(
           index: _index,
-          children: const [TodayScreen(), PeopleScreen(), SettingsScreen()],
+          children: const [
+            TodayScreen(),
+            CalendarScreen(),
+            PeopleScreen(),
+            SettingsScreen(),
+          ],
         ),
       ),
       bottomNavigationBar: DecoratedBox(
@@ -81,7 +87,9 @@ class _HomeShellState extends State<HomeShell> {
           onDestinationSelected: (i) => setState(() => _index = i),
           destinations: const [
             NavigationDestination(
-                icon: Icon(Icons.calendar_today_outlined), label: 'Heute'),
+                icon: Icon(Icons.cake_outlined), label: 'Heute'),
+            NavigationDestination(
+                icon: Icon(Icons.calendar_month_outlined), label: 'Kalender'),
             NavigationDestination(
                 icon: Icon(Icons.people_outline), label: 'Personen'),
             NavigationDestination(
