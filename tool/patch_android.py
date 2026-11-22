@@ -35,6 +35,7 @@ text = manifest.read_text(encoding="utf-8")
 text = re.sub(r'android:label="[^"]*"', 'android:label="Geburtstage"', text, count=1)
 
 for perm in [
+    "android.permission.INTERNET",
     "android.permission.READ_CONTACTS",
     "android.permission.POST_NOTIFICATIONS",
     "android.permission.RECEIVE_BOOT_COMPLETED",
