@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui' show Color;
 
 import 'package:drift/drift.dart' show Value;
@@ -9,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../domain/dedupe.dart';
 import 'database.dart';
+import 'share_bridge.dart';
 
 /// Plans greetings: a notification at the chosen time carries the ready
 /// text; tapping it (or «Senden») opens WhatsApp, SMS or e-mail with the
@@ -134,15 +136,29 @@ class GreetingService {
     await send(g, p);
   }
 
-  /// Opens the chat with the text filled in and marks the greeting as sent.
+  /// Opens the chat with the text (and the card image) filled in and marks
+  /// the greeting as sent. With an image: WhatsApp straight into the chat,
+  /// other channels through the share sheet.
   Future<bool> send(Greeting g, Person p) async {
     final text = g.draft ?? '';
-    final uri = sendUri(p, text);
-    if (uri == null) return false;
+    final image = g.imagePath != null && File(g.imagePath!).existsSync()
+        ? g.imagePath
+        : null;
     var ok = false;
-    try {
-      ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {}
+    if (image != null) {
+      final phone = normalizePhone(p.phone);
+      final whatsapp = p.channel == Channels.whatsapp ||
+          (p.channel != Channels.email && p.channel != Channels.sms && phone != null);
+      ok = whatsapp && phone != null
+          ? await ShareBridge.sendWhatsApp(phone: phone, text: text, imagePath: image)
+          : await ShareBridge.share(text: text, imagePath: image);
+    } else {
+      final uri = sendUri(p, text);
+      if (uri == null) return false;
+      try {
+        ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (_) {}
+    }
     if (ok) {
       await cancel(g.id);
       await db.saveGreeting(

@@ -83,6 +83,12 @@ class Greetings extends Table {
 
   /// Last generated variants as JSON ([{"title","text"}]).
   TextColumn get variants => text().nullable()();
+
+  /// Prompt for an external image AI (e.g. ChatGPT) to design a card.
+  TextColumn get imagePrompt => text().nullable()();
+
+  /// The card image that goes out with the text (file in app storage).
+  TextColumn get imagePath => text().nullable()();
 }
 
 @DriftDatabase(tables: [People, Notes, Greetings])
@@ -91,7 +97,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? driftDatabase(name: 'geburtstage'));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -99,6 +105,10 @@ class AppDatabase extends _$AppDatabase {
           if (from < 2) {
             await m.addColumn(greetings, greetings.scheduledAt);
             await m.addColumn(greetings, greetings.variants);
+          }
+          if (from < 3) {
+            await m.addColumn(greetings, greetings.imagePrompt);
+            await m.addColumn(greetings, greetings.imagePath);
           }
         },
         beforeOpen: (details) async {
@@ -169,6 +179,8 @@ class AppDatabase extends _$AppDatabase {
     Value<String> status = const Value.absent(),
     Value<DateTime?> scheduledAt = const Value.absent(),
     Value<String?> variants = const Value.absent(),
+    Value<String?> imagePrompt = const Value.absent(),
+    Value<String?> imagePath = const Value.absent(),
   }) async {
     final existing = await greetingFor(personId, year);
     if (existing == null) {
@@ -181,6 +193,8 @@ class AppDatabase extends _$AppDatabase {
         status: status,
         scheduledAt: scheduledAt,
         variants: variants,
+        imagePrompt: imagePrompt,
+        imagePath: imagePath,
       ));
       return (await greetingById(id))!;
     }
@@ -192,6 +206,8 @@ class AppDatabase extends _$AppDatabase {
         status: status,
         scheduledAt: scheduledAt,
         variants: variants,
+        imagePrompt: imagePrompt,
+        imagePath: imagePath,
       ),
     );
     return (await greetingById(existing.id))!;

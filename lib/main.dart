@@ -7,12 +7,16 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'data/database.dart';
 import 'data/greeting_service.dart';
 import 'data/photo_sync.dart';
+import 'data/share_bridge.dart';
 import 'data/widget_sync.dart';
 import 'theme/app_theme.dart';
 import 'ui/calendar_screen.dart';
+import 'ui/format.dart';
+import 'ui/greeting_editor.dart';
 import 'ui/people_screen.dart';
 import 'ui/planner_screen.dart';
 import 'ui/settings_screen.dart';
+import 'ui/share_sheet.dart';
 import 'ui/today_screen.dart';
 
 Future<void> main() async {
@@ -24,6 +28,7 @@ Future<void> main() async {
   } catch (e) {
     debugPrint('Greeting service failed: $e');
   }
+  await ShareBridge.init();
   runApp(GeburtstageApp(db: db));
   // Photos follow the contacts automatically, a moment after start.
   Future.delayed(const Duration(seconds: 3), () => PhotoSync(db).run());
@@ -77,6 +82,46 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   var _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    ShareBridge.incoming.addListener(_onShare);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onShare());
+  }
+
+  @override
+  void dispose() {
+    ShareBridge.incoming.removeListener(_onShare);
+    super.dispose();
+  }
+
+  /// Text or an image arrived from another app: ask for whom, then open
+  /// that person's greeting with it.
+  Future<void> _onShare() async {
+    final shared = ShareBridge.incoming.value;
+    if (shared == null || !mounted) return;
+    ShareBridge.incoming.value = null;
+    final db = AppScope.of(context);
+    final people = await db.allPeople();
+    if (!mounted) return;
+    if (people.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Erst Personen erfassen, dann klappt das Teilen.')));
+      return;
+    }
+    final chosen = await showModalBottomSheet<Person>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SharePersonSheet(
+          cards: upcomingFor(people, DateTime.now()), shared: shared),
+    );
+    if (chosen == null || !mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => GreetingEditor(person: chosen, incoming: shared)));
+  }
 
   @override
   Widget build(BuildContext context) {

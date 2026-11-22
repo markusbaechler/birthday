@@ -226,10 +226,10 @@ class _HaloPainter extends CustomPainter {
     final ring = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 4; i++) {
       final breathe = math.sin(t * 2 * math.pi / 6 - i * 0.6);
-      final r = radius + 22 + i * 30 + breathe * (1.5 + i * 0.6);
-      ring.color = color.withValues(alpha: math.max(0.05, 0.34 - i * 0.07));
+      final r = radius + 24 + i * 34 + breathe * (1.5 + i * 0.6);
+      ring.color = color.withValues(alpha: math.max(0.05, 0.26 - i * 0.06));
       canvas.drawCircle(c, r, ring);
     }
 

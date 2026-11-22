@@ -22,6 +22,8 @@ if not (KOTLIN_DIR / "MainActivity.kt").exists():
 
 # 1. Copy widget code and resources
 shutil.copy(OVERLAY / "kotlin" / "BirthdayWidgets.kt", KOTLIN_DIR / "BirthdayWidgets.kt")
+# MainActivity with the share bridge (replaces the generated one)
+shutil.copy(OVERLAY / "kotlin" / "MainActivity.kt", KOTLIN_DIR / "MainActivity.kt")
 for src in (OVERLAY / "res").rglob("*.xml"):
     dest = MAIN / "res" / src.relative_to(OVERLAY / "res")
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -77,6 +79,33 @@ for name, info, label in [
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/{info}" />
         </receiver>
 """
+# Share target: text and images from other apps (e.g. ChatGPT)
+if "android.intent.action.SEND" not in text:
+    text = text.replace("</activity>", """    <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>""", 1)
+
+# File provider: card images go out to WhatsApp and the share sheet
+if ".greetings" not in text:
+    receivers += """
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.greetings"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/greeting_paths" />
+        </provider>
+"""
 text = text.replace("</application>", receivers + "    </application>", 1)
 
 manifest.write_text(text, encoding="utf-8")
@@ -89,7 +118,7 @@ g = gradle.read_text(encoding="utf-8")
 if "isCoreLibraryDesugaringEnabled" not in g:
     g = re.sub(r"compileOptions\s*\{", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true", g, count=1)
 if "desugar_jdk_libs" not in g:
-    g += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+    g += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n    implementation("androidx.core:core-ktx:1.13.1")\n}\n'
 gradle.write_text(g, encoding="utf-8")
 print("Patched", gradle)
 print(g)

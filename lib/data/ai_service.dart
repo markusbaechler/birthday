@@ -76,17 +76,19 @@ Regeln:
 - Wiederhole keine Formulierung aus den Grüssen früherer Jahre.
 Antworte ausschliesslich mit JSON: {"variants":[{"title":"2-3 Wörter zur Idee","text":"…"},{…},{…}]} mit genau 3 Varianten.''';
 
-  /// Three new variants. [instruction] rewrites [baseText] (e.g. «kürzer»).
-  Future<List<GreetingVariant>> generate(
-    Person p, {
-    String? instruction,
-    String? baseText,
-  }) async {
-    final key = await Secrets.apiKey();
-    if (key == null) {
-      throw const AiException(
-          'Kein API-Schlüssel hinterlegt. Unter «Mehr» eintragen.');
-    }
+  static const _imageSystem = """
+Du schreibst einen Bildprompt für ChatGPT (Bildgenerierung). Daraus entsteht eine persönliche Geburtstagskarte, die zusammen mit einem Gruss per WhatsApp verschickt wird.
+Regeln:
+- Schreibe den Prompt auf Deutsch, als direkte Anweisung an ChatGPT, 90 bis 160 Wörter, ein einziger Absatz.
+- Hochformat 4:5. Eine klare Bildidee statt vieler Einzelteile. Ein konkreter Stil (z. B. Risographie, Aquarell, Scherenschnitt, 3D-Knete, Linolschnitt, Fotografie), passend zu Ton und Beziehung.
+- Motive nur aus den Angaben (Insider, Notizen, Beziehung, Alter). Nichts erfinden. Fehlen Angaben: ein schönes, eigenständiges Motiv ohne persönliche Details.
+- Keine realen Personen nachbilden, keine Gesichter von echten Menschen, keine Marken und Logos.
+- Auf der Karte steht genau ein kurzer Schriftzug mit dem Vornamen, z. B. «Alles Gute, Silvia» oder in Mundart, wenn die Sprache Mundart ist. Schreibe den Schriftzug wörtlich in Anführungszeichen und verlange korrekte Rechtschreibung. Sonst kein Text im Bild.
+- Deutsch immer mit ss statt ß.
+Antworte nur mit dem Prompt, ohne Einleitung und ohne Anführungszeichen drumherum.""";
+
+  /// What the AI may know about [p]: no phone, e-mail, last name or photo.
+  Future<String> _facts(Person p) async {
     final next = nextBirthday(
         day: p.birthDay, month: p.birthMonth, year: p.birthYear, today: DateTime.now());
     final notes = (await db.allNotes())
@@ -99,58 +101,39 @@ Antworte ausschliesslich mit JSON: {"variants":[{"title":"2-3 Wörter zur Idee",
         .take(3)
         .map((g) => '- ${g.year}: ${g.sentText ?? g.draft ?? ''}')
         .join('\n');
+    return (StringBuffer()
+          ..writeln('Vorname: ${p.nickname?.trim().isNotEmpty == true ? p.nickname!.trim() : p.firstName}')
+          ..writeln(next.turning != null ? 'Wird: ${next.turning}' : 'Alter: unbekannt')
+          ..writeln('Beziehung: ${p.relation?.trim().isNotEmpty == true ? p.relation : 'nicht angegeben'}')
+          ..writeln('Ton: ${p.tone?.trim().isNotEmpty == true ? p.tone : 'herzlich'}')
+          ..writeln('Sprache: ${p.language?.trim().isNotEmpty == true ? p.language : 'Deutsch (Schweiz)'}')
+          ..writeln('Kanal: ${Channels.label(p.channel)}')
+          ..writeln('Insider und Erlebnisse:\n${p.insiders.trim().isEmpty ? '- keine angegeben' : p.insiders.trim()}')
+          ..writeln('Notizen der letzten Monate:\n${notes.isEmpty ? '- keine' : notes}')
+          ..writeln('Grüsse früherer Jahre:\n${earlier.isEmpty ? '- keine' : earlier}'))
+        .toString();
+  }
 
-    final facts = StringBuffer()
-      ..writeln('Vorname: ${p.nickname?.trim().isNotEmpty == true ? p.nickname!.trim() : p.firstName}')
-      ..writeln(next.turning != null ? 'Wird: ${next.turning}' : 'Alter: unbekannt')
-      ..writeln('Beziehung: ${p.relation?.trim().isNotEmpty == true ? p.relation : 'nicht angegeben'}')
-      ..writeln('Ton: ${p.tone?.trim().isNotEmpty == true ? p.tone : 'herzlich'}')
-      ..writeln('Sprache: ${p.language?.trim().isNotEmpty == true ? p.language : 'Deutsch (Schweiz)'}')
-      ..writeln('Kanal: ${Channels.label(p.channel)}')
-      ..writeln('Insider und Erlebnisse:\n${p.insiders.trim().isEmpty ? '- keine angegeben' : p.insiders.trim()}')
-      ..writeln('Notizen der letzten Monate:\n${notes.isEmpty ? '- keine' : notes}')
-      ..writeln('Grüsse früherer Jahre:\n${earlier.isEmpty ? '- keine' : earlier}');
-    if (instruction != null && baseText != null) {
+  /// Three new variants. With [baseText], [instruction] rewrites it
+  /// (e.g. «kürzer»); without, [instruction] is a wish for new drafts.
+  Future<List<GreetingVariant>> generate(
+    Person p, {
+    String? instruction,
+    String? baseText,
+  }) async {
+    final facts = StringBuffer(await _facts(p));
+    final hasBase = baseText != null && baseText.trim().isNotEmpty;
+    if (instruction != null && hasBase) {
       facts
         ..writeln()
-        ..writeln('Überarbeite diesen Entwurf: «$baseText»')
+        ..writeln('Überarbeite diesen Entwurf: «${baseText.trim()}»')
         ..writeln('Änderung: $instruction. Drei Varianten dieser Überarbeitung.');
+    } else if (instruction != null) {
+      facts
+        ..writeln()
+        ..writeln('Wunsch für alle drei Varianten: $instruction');
     }
-
-    final http.Response res;
-    try {
-      res = await http
-          .post(
-            Uri.parse(_endpoint),
-            headers: {
-              'x-api-key': key,
-              'anthropic-version': '2023-06-01',
-              'content-type': 'application/json',
-            },
-            body: jsonEncode({
-              'model': _model,
-              'max_tokens': 1200,
-              'system': _system,
-              'messages': [
-                {'role': 'user', 'content': facts.toString()}
-              ],
-            }),
-          )
-          .timeout(const Duration(seconds: 60));
-    } catch (e) {
-      throw const AiException('Keine Verbindung. Bitte später nochmals.');
-    }
-    if (res.statusCode == 401) {
-      throw const AiException('Der API-Schlüssel ist ungültig.');
-    }
-    if (res.statusCode != 200) {
-      throw AiException('Die KI antwortet nicht (Fehler ${res.statusCode}).');
-    }
-    final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-    final text = (body['content'] as List)
-        .where((c) => c['type'] == 'text')
-        .map((c) => c['text'] as String)
-        .join();
+    final text = await _call(_system, facts.toString(), 1200);
     final start = text.indexOf('{');
     final end = text.lastIndexOf('}');
     if (start < 0 || end <= start) {
@@ -166,6 +149,79 @@ Antworte ausschliesslich mit JSON: {"variants":[{"title":"2-3 Wörter zur Idee",
       throw const AiException('Die KI hat keinen Text geliefert.');
     }
     return variants;
+  }
+
+  /// A prompt for ChatGPT to design a birthday card for [p]. [greeting] sets
+  /// the mood; it is not written onto the card.
+  Future<String> imagePrompt(Person p, {String? greeting, String? wish}) async {
+    final facts = StringBuffer(await _facts(p));
+    if (greeting != null && greeting.trim().isNotEmpty) {
+      facts.writeln('Der Gruss, der mit der Karte geht (nur für die Stimmung): «${greeting.trim()}»');
+    }
+    if (wish != null && wish.trim().isNotEmpty) {
+      facts.writeln('Wunsch für das Bild: ${wish.trim()}');
+    }
+    final text = await _call(_imageSystem, facts.toString(), 700);
+    final prompt = text.trim().replaceAll('ß', 'ss');
+    if (prompt.isEmpty) throw const AiException('Die KI hat keinen Prompt geliefert.');
+    return prompt;
+  }
+
+  /// A prompt without AI, from the profile alone (no API key needed).
+  static String fallbackImagePrompt(Person p) {
+    final name = p.nickname?.trim().isNotEmpty == true ? p.nickname!.trim() : p.firstName;
+    final next = nextBirthday(
+        day: p.birthDay, month: p.birthMonth, year: p.birthYear, today: DateTime.now());
+    final insiders = p.insiders.trim().replaceAll('\n', ', ');
+    return [
+      'Gestalte eine Geburtstagskarte im Hochformat 4:5 als moderne Illustration im Risographie-Stil, mit wenigen kräftigen Farben auf warmem Papierton und feiner Körnung.',
+      if (next.turning != null) 'Anlass: ${next.turning}. Geburtstag; die Zahl darf als grafisches Element vorkommen.',
+      if (insiders.isNotEmpty) 'Baue diese persönlichen Motive ein: $insiders.',
+      'Viel Luft, eine klare Bildidee, keine realen Personen, keine Logos.',
+      'Einziger Text im Bild, korrekt geschrieben: «Alles Gute, $name».',
+    ].join(' ');
+  }
+
+  Future<String> _call(String system, String user, int maxTokens) async {
+    final key = await Secrets.apiKey();
+    if (key == null) {
+      throw const AiException(
+          'Kein API-Schlüssel hinterlegt. Unter «Mehr» eintragen.');
+    }
+    final http.Response res;
+    try {
+      res = await http
+          .post(
+            Uri.parse(_endpoint),
+            headers: {
+              'x-api-key': key,
+              'anthropic-version': '2023-06-01',
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({
+              'model': _model,
+              'max_tokens': maxTokens,
+              'system': system,
+              'messages': [
+                {'role': 'user', 'content': user}
+              ],
+            }),
+          )
+          .timeout(const Duration(seconds: 60));
+    } catch (e) {
+      throw const AiException('Keine Verbindung. Bitte später nochmals.');
+    }
+    if (res.statusCode == 401) {
+      throw const AiException('Der API-Schlüssel ist ungültig.');
+    }
+    if (res.statusCode != 200) {
+      throw AiException('Die KI antwortet nicht (Fehler ${res.statusCode}).');
+    }
+    final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    return (body['content'] as List)
+        .where((c) => c['type'] == 'text')
+        .map((c) => c['text'] as String)
+        .join();
   }
 
   /// Quick check for the settings screen.
