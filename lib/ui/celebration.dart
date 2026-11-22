@@ -181,11 +181,10 @@ class _CelebrationScreenState extends State<CelebrationScreen>
                       opacity: avatar,
                       child: Transform.rotate(
                         angle: (1 - avatar) * -0.6,
-                        child: CookieAvatar(
+                        child: PersonAvatar(
                           person: p,
                           size: 148,
                           color: color,
-                          rotation: _t * 0.08,
                         ),
                       ),
                     ),
@@ -194,22 +193,27 @@ class _CelebrationScreenState extends State<CelebrationScreen>
                   Opacity(
                     opacity: lead,
                     child: Text(
-                      target != null ? '$name wird heute' : '$name hat heute Geburtstag',
+                      target != null ? '$name wird heute' : 'Heute hat Geburtstag',
                       style: Nl.lead.copyWith(color: Nl.ink),
                     ),
                   ),
-                  if (target != null)
-                    Transform.scale(
-                      scale: 0.85 + 0.15 * count,
-                      child: Opacity(
-                        opacity: count,
+                  Transform.scale(
+                    scale: 0.85 + 0.15 * count,
+                    child: Opacity(
+                      opacity: count,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
                         child: Text(
-                          '${(target * count).round()}',
+                          target != null ? '${(target * count).round()}' : name,
+                          maxLines: 1,
                           style: Nl.countdown.copyWith(
-                              color: color, fontSize: 176, height: 1.0),
+                              color: color,
+                              fontSize: target != null ? 176 : 112,
+                              height: 1.0),
                         ),
                       ),
                     ),
+                  ),
                   Opacity(
                     opacity: lead,
                     child: Text(fullName(p),

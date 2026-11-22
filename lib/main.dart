@@ -111,7 +111,7 @@ class _HomeShellState extends State<HomeShell> {
                 NavigationDestination(
                     icon: Icon(Icons.people_outline), label: 'Personen'),
                 NavigationDestination(
-                    icon: Icon(Icons.tune), label: 'Einstellungen'),
+                    icon: Icon(Icons.tune), label: 'Mehr'),
               ],
             ),
           ),

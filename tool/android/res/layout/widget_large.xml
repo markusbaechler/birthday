@@ -68,7 +68,7 @@
                 android:layout_weight="1" android:ellipsize="end" android:fontFamily="sans-serif" android:maxLines="1"
                 android:textColor="#CFC8DA" android:textSize="13sp" />
             <TextView android:id="@+id/w_row1_days" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-light" android:textColor="#ECE7F2" android:textSize="17sp" />
+                android:fontFamily="sans-serif-light" android:textColor="#ECE7F2" android:textSize="14sp" />
         </LinearLayout>
 
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -79,7 +79,7 @@
                 android:layout_weight="1" android:ellipsize="end" android:fontFamily="sans-serif" android:maxLines="1"
                 android:textColor="#CFC8DA" android:textSize="13sp" />
             <TextView android:id="@+id/w_row2_days" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-light" android:textColor="#ECE7F2" android:textSize="17sp" />
+                android:fontFamily="sans-serif-light" android:textColor="#ECE7F2" android:textSize="14sp" />
         </LinearLayout>
 
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -90,7 +90,7 @@
                 android:layout_weight="1" android:ellipsize="end" android:fontFamily="sans-serif" android:maxLines="1"
                 android:textColor="#CFC8DA" android:textSize="13sp" />
             <TextView android:id="@+id/w_row3_days" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-light" android:textColor="#ECE7F2" android:textSize="17sp" />
+                android:fontFamily="sans-serif-light" android:textColor="#ECE7F2" android:textSize="14sp" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

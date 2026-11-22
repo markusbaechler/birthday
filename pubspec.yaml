@@ -34,9 +34,9 @@ flutter:
   uses-material-design: true
   fonts:
     # Downloaded in CI from github.com/google/fonts (OFL), see build.yml
-    - family: Fraunces
+    - family: RobotoFlex
       fonts:
-        - asset: assets/fonts/Fraunces.ttf
+        - asset: assets/fonts/RobotoFlex.ttf
 
 flutter_launcher_icons:
   android: "ic_launcher"

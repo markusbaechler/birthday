@@ -40,8 +40,7 @@ class RingsPainter extends CustomPainter {
   bool shouldRepaint(RingsPainter old) => old.progress != progress;
 }
 
-/// Person avatar in cookie shape with a hairline outline in the person's
-/// colour (photo or initials).
+/// Round person avatar with a hairline ring in the person's colour.
 class PersonRing extends StatelessWidget {
   const PersonRing({super.key, required this.person, this.size = 40, this.today = false});
   final Person person;
@@ -49,7 +48,7 @@ class PersonRing extends StatelessWidget {
   final bool today;
 
   @override
-  Widget build(BuildContext context) => CookieAvatar(
+  Widget build(BuildContext context) => PersonAvatar(
         person: person,
         size: size,
         color: Nl.personColor(person.colorIndex, today: today),

@@ -138,14 +138,18 @@ class _AnimatedCountdownHeroState extends State<AnimatedCountdownHero>
                       excludeSemantics: true,
                       child: Opacity(
                         opacity: numberOpacity,
-                        child: Text(
-                          shown,
-                          maxLines: 1,
-                          style: Nl.countdown.copyWith(
-                            color: widget.color,
-                            fontSize: widget.numberSize,
-                            height: widget.numberSize == null ? null : 1.0,
-                            letterSpacing: widget.numberSize == null ? null : -3,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            shown,
+                            maxLines: 1,
+                            style: Nl.countdown.copyWith(
+                              color: widget.color,
+                              fontSize: widget.numberSize ?? (target == null ? 104 : null),
+                              height: target == null ? 1.0 : null,
+                              letterSpacing: target == null ? -3 : null,
+                            ),
                           ),
                         ),
                       ),

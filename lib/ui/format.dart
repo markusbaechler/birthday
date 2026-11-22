@@ -52,3 +52,33 @@ List<Upcoming> upcomingFor(List<Person> people, DateTime today) {
   ]..sort((a, b) => a.next.daysUntil.compareTo(b.next.daysUntil));
   return list;
 }
+
+/// What a hero shows. The big element is the age, or the name when the
+/// birth year is unknown; days until the birthday are only ever small.
+class HeroText {
+  const HeroText(this.lead, this.big, this.caption);
+  final String lead;
+  final String big;
+  final String caption;
+
+  bool get bigIsNumber => int.tryParse(big) != null;
+}
+
+HeroText heroTextFor(Upcoming u) {
+  final p = u.person;
+  final n = u.next;
+  final name = displayName(p);
+  final when = n.isToday ? 'heute' : inDays(n.daysUntil);
+  if (n.turning != null) {
+    return HeroText(
+      n.isToday ? '$name wird heute' : '$name wird',
+      '${n.turning}',
+      n.isToday ? fullName(p) : '$when · ${formatLong(n.date)}',
+    );
+  }
+  return HeroText(
+    n.isToday ? 'Heute hat Geburtstag' : 'Geburtstag $when',
+    name,
+    n.isToday ? fullName(p) : formatLong(n.date),
+  );
+}

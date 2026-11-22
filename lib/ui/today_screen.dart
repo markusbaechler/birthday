@@ -200,18 +200,7 @@ class _BirthdayCard extends StatelessWidget {
     final scale = 1 - 0.07 * delta.abs();
     final opacity = 1 - 0.45 * delta.abs();
 
-    final String lead;
-    final String number;
-    final String caption;
-    if (n.isToday) {
-      lead = n.turning != null ? '$name wird heute' : '$name hat heute Geburtstag';
-      number = n.turning != null ? '${n.turning}' : '♥';
-      caption = fullName(p);
-    } else {
-      lead = n.turning != null ? '$name wird ${n.turning} in' : '$name hat Geburtstag in';
-      number = '${n.daysUntil}';
-      caption = '${n.daysUntil == 1 ? 'Tag' : 'Tagen'} · ${formatLong(n.date)}';
-    }
+    final hero = heroTextFor(u);
 
     return Transform.scale(
       scale: scale,
@@ -271,10 +260,10 @@ class _BirthdayCard extends StatelessWidget {
                         right: Nl.s5,
                         bottom: Nl.s5,
                         child: _CardText(
-                          key: ValueKey('card-${p.id}-$number-$active'),
-                          lead: lead,
-                          number: number,
-                          caption: caption,
+                          key: ValueKey('card-${p.id}-${hero.big}-$active'),
+                          lead: hero.lead,
+                          number: hero.big,
+                          caption: hero.caption,
                           color: color,
                           animate: active,
                           delay: entranceDelay,
@@ -377,10 +366,20 @@ class _CardTextState extends State<_CardText>
             ),
             Transform.translate(
               offset: Offset(0, 12 * (1 - count)),
-              child: Text(
-                shown,
-                maxLines: 1,
-                style: Nl.countdown.copyWith(color: widget.color, fontSize: 132, height: 1.0),
+              child: Opacity(
+                opacity: target == null ? count : 1,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    shown,
+                    maxLines: 1,
+                    style: Nl.countdown.copyWith(
+                        color: widget.color,
+                        fontSize: target == null ? 104 : 140,
+                        height: 1.0),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: Nl.s2),
@@ -459,6 +458,7 @@ class _UpcomingRow extends StatelessWidget {
       formatShort(n.date),
       if (n.turning != null) 'wird ${n.turning}',
     ].join(' · ');
+
     return PressScale(
       child: InkWell(
         onTap: () => _TodayScreenState.open(context, p, heroTag: 'today-ring-${p.id}'),
@@ -483,9 +483,7 @@ class _UpcomingRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Text('${n.daysUntil}', style: Nl.display(26, weight: 300)),
-              const SizedBox(width: Nl.s1),
-              Text(n.daysUntil == 1 ? 'Tag' : 'Tage', style: Nl.caption),
+              Text(inDays(n.daysUntil), style: Nl.caption),
             ],
           ),
         ),

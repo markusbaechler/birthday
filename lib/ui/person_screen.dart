@@ -32,7 +32,6 @@ class PersonScreen extends StatelessWidget {
                 year: p.birthYear,
                 today: DateTime.now());
             final color = Nl.personColor(p.colorIndex, today: n.isToday);
-            final name = displayName(p);
             return Stack(
               children: [
                 // Photo (or colour light) behind the top, fading into the page.
@@ -90,22 +89,19 @@ class PersonScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: Nl.s5),
-                AnimatedCountdownHero(
-                  celebrate: n.isToday,
-                  lead: n.isToday
-                      ? '$name hat heute Geburtstag'
-                      : '$name ${n.turning != null ? 'wird' : 'hat Geburtstag'} ${inDays(n.daysUntil)}',
-                  number: n.turning != null
-                      ? '${n.turning}'
-                      : (n.isToday ? 'Heute' : '${n.daysUntil}'),
-                  numberSize: n.turning == null && n.isToday ? 96 : null,
-                  caption: [
-                    fullName(p),
-                    if (p.relation?.isNotEmpty ?? false) p.relation!,
-                    formatLong(n.date),
-                  ].join(' · '),
-                  color: color,
-                ),
+                Builder(builder: (context) {
+                  final hero = heroTextFor(Upcoming(p, n));
+                  return AnimatedCountdownHero(
+                    celebrate: n.isToday,
+                    lead: hero.lead,
+                    number: hero.big,
+                    caption: [
+                      hero.caption,
+                      if (p.relation?.isNotEmpty ?? false) p.relation!,
+                    ].join(' · '),
+                    color: color,
+                  );
+                }),
                 const SizedBox(height: Nl.s5),
                 _ProfileLine(person: p),
                 if (p.insiders.trim().isNotEmpty) ...[

@@ -45,8 +45,8 @@ abstract final class Nl {
   static const rXl = 28.0;
 
   // Type
-  /// Display face with character: Fraunces (variable, soft optical sizes).
-  static const displayFamily = 'Fraunces';
+  /// Display face: Roboto Flex (variable). Thin at large sizes.
+  static const displayFamily = 'RobotoFlex';
 
   /// Display text in Fraunces. [weight] drives the variable axis.
   static TextStyle display(double size,
@@ -59,19 +59,17 @@ abstract final class Nl {
         color: color,
         fontVariations: [
           FontVariation('wght', weight),
-          FontVariation('opsz', size.clamp(9, 144).toDouble()),
-          const FontVariation('SOFT', 100),
+          FontVariation('opsz', size.clamp(8, 144).toDouble()),
         ],
       );
 
   static const countdown = TextStyle(
       fontFamily: displayFamily,
-      fontSize: 156, height: 136 / 156, fontWeight: FontWeight.w300,
-      letterSpacing: -4,
+      fontSize: 156, height: 136 / 156, fontWeight: FontWeight.w200,
+      letterSpacing: -6,
       fontVariations: [
-        FontVariation('wght', 260),
+        FontVariation('wght', 170),
         FontVariation('opsz', 144),
-        FontVariation('SOFT', 100),
       ],
       fontFeatures: [FontFeature.liningFigures()]);
   static const draft = TextStyle(
@@ -81,7 +79,7 @@ abstract final class Nl {
   static const title = TextStyle(
       fontFamily: displayFamily, fontSize: 28, height: 34 / 28,
       fontWeight: FontWeight.w400, color: ink,
-      fontVariations: [FontVariation('wght', 360), FontVariation('opsz', 36), FontVariation('SOFT', 100)]);
+      fontVariations: [FontVariation('wght', 300), FontVariation('opsz', 36)]);
   static const lead =
       TextStyle(fontSize: 20, height: 28 / 20, fontWeight: FontWeight.w300, color: inkSoft);
   static const body =

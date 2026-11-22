@@ -83,23 +83,24 @@ object BirthdayCalc {
 
     fun weekday(n: Next): String = WEEKDAYS[n.weekday]
 
-    /** Big number: age today, otherwise the days until. */
-    fun number(n: Next): String = when {
-        n.days == 0 && n.turning != null -> n.turning.toString()
-        n.days == 0 -> "Heute"
-        else -> n.days.toString()
+    /** Big element: the age, or the name when the birth year is unknown. */
+    fun number(n: Next): String = n.turning?.toString() ?: n.entry.name
+
+    /** Small line above: when. */
+    fun top(n: Next): String = when (n.days) {
+        0 -> "Heute"
+        1 -> "Morgen"
+        else -> "In ${n.days} Tagen"
     }
 
-    fun top(n: Next): String = when {
-        n.days == 0 -> "Heute"
-        n.turning != null -> "${n.entry.name} · ${n.turning}"
-        else -> n.entry.name
-    }
+    /** Small line below: who (if the age is big) or the weekday. */
+    fun bottom(n: Next): String =
+        if (n.turning != null) n.entry.name else weekday(n)
 
-    fun bottom(n: Next): String = when {
-        n.days == 0 -> n.entry.name
-        n.days == 1 -> "Tag, morgen"
-        else -> "Tage, ${weekday(n)}"
+    fun dateShort(n: Next): String {
+        val c = Calendar.getInstance()
+        c.add(Calendar.DAY_OF_YEAR, n.days)
+        return "${c.get(Calendar.DAY_OF_MONTH)}.${c.get(Calendar.MONTH) + 1}."
     }
 }
 
@@ -143,7 +144,7 @@ class LargeBirthdayWidget : HomeWidgetProvider() {
                     views.setTextViewText(rowDots[i], "")
                 } else {
                     views.setTextViewText(rowNames[i], n.entry.name)
-                    views.setTextViewText(rowDays[i], if (n.days == 0) "heute" else n.days.toString())
+                    views.setTextViewText(rowDays[i], if (n.days == 0) "heute" else BirthdayCalc.dateShort(n))
                     views.setTextViewText(rowDots[i], "●")
                     views.setTextColor(rowDots[i], BirthdayCalc.color(n))
                 }

@@ -39,12 +39,12 @@ jobs:
           rm -f test/widget_test.dart
           python3 tool/patch_android.py
 
-      - name: Fetch display font (Fraunces, OFL)
+      - name: Fetch display font (Roboto Flex, OFL)
         run: |
           mkdir -p assets/fonts
-          curl -fsSL --retry 3 -o assets/fonts/Fraunces.ttf \
-            "https://github.com/google/fonts/raw/main/ofl/fraunces/Fraunces%5BSOFT,WONK,opsz,wght%5D.ttf"
-          test -s assets/fonts/Fraunces.ttf
+          curl -fsSL --retry 3 -o assets/fonts/RobotoFlex.ttf \
+            "https://github.com/google/fonts/raw/main/ofl/robotoflex/RobotoFlex%5BGRAD,XOPQ,XTRA,YOPQ,YTAS,YTDE,YTFI,YTLC,YTUC,opsz,slnt,wdth,wght%5D.ttf"
+          test -s assets/fonts/RobotoFlex.ttf
           ls -la assets/fonts
 
       - name: Install packages
