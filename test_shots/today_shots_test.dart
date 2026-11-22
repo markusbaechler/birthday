@@ -314,7 +314,6 @@ void main() {
       final db = await seedMany();
       await _shot(tester, name, screen,
           nav: name.startsWith('06') ? 2 : name.startsWith('07') ? 1 : 3, db: db);
-      await db.close();
     });
   }
 }

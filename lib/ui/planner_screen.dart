@@ -132,7 +132,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
               const SectionLabel('Grüsse'),
               const SizedBox(height: Nl.s4),
               Text(
-                '${planned.length} geplant · ${draftRows.length} Entwürfe · ${openRows.length} offen',
+                '${planned.length} geplant · ${draftRows.length} ${draftRows.length == 1 ? 'Entwurf' : 'Entwürfe'} · ${openRows.length} offen',
                 style: Nl.title,
               ),
               const SizedBox(height: Nl.s2),
@@ -162,7 +162,9 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   const SizedBox(height: Nl.s2),
                   OutlinedButton(
                     onPressed: () => _planAll(draftRows),
-                    child: Text('${draftRows.length} Entwürfe planen (09:00)'),
+                    child: Text(draftRows.length == 1
+                        ? '1 Entwurf planen (09:00)'
+                        : '${draftRows.length} Entwürfe planen (09:00)'),
                   ),
                 ],
               ],
@@ -234,13 +236,15 @@ class _PlannedCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                width: 64,
+                width: 56,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(at == null ? '–' : '${at.day}.${at.month}.',
-                        style: Nl.display(24, weight: 300, color: Nl.ink, height: 1.1)),
+                    Text(at == null ? '–' : '${at.day}',
+                        style: Nl.display(30, weight: 280, color: Nl.ink, height: 1)),
                     const SizedBox(height: 2),
+                    Text(at == null ? '' : monthNames[at.month - 1].substring(0, 3),
+                        style: Nl.caption),
                     Text(
                       at == null
                           ? ''
