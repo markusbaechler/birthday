@@ -681,19 +681,24 @@ class _GreetingEditorState extends State<GreetingEditor> {
                       ),
                     ),
                     const SizedBox(height: Nl.s2),
-                    Wrap(
+                    Row(
                       children: [
-                        _ToolButton(
-                            icon: _promptOpen ? Icons.unfold_less : Icons.unfold_more,
-                            label: _promptOpen ? 'Weniger' : 'Ganz',
-                            onTap: () => setState(() => _promptOpen = !_promptOpen)),
+                        IconButton(
+                          tooltip: _promptOpen ? 'Weniger' : 'Ganzer Prompt',
+                          visualDensity: VisualDensity.compact,
+                          icon: Icon(
+                              _promptOpen ? Icons.unfold_less : Icons.unfold_more,
+                              size: 18,
+                              color: Nl.inkSoft),
+                          onPressed: () => setState(() => _promptOpen = !_promptOpen),
+                        ),
                         _ToolButton(
                             icon: Icons.edit_outlined,
                             label: 'Ändern',
                             onTap: _editPrompt),
                         _ToolButton(
                             icon: Icons.refresh,
-                            label: 'Neue Idee',
+                            label: 'Neu',
                             onTap: () => _makePrompt()),
                         _ToolButton(
                             icon: Icons.chat_bubble_outline,
