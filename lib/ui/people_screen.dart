@@ -6,6 +6,7 @@ import '../main.dart';
 import '../theme/tokens.dart';
 import 'format.dart';
 import 'person_edit_screen.dart';
+import 'motion.dart';
 import 'person_screen.dart';
 import 'widgets.dart';
 
@@ -62,7 +63,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
             ),
             const SizedBox(height: Nl.s3),
             for (final p in shown)
-              InkWell(
+              PressScale(child: InkWell(
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => PersonScreen(personId: p.id))),
                 child: Container(
@@ -94,7 +95,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     ],
                   ),
                 ),
-              ),
+              )),
           ],
         );
       },

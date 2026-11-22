@@ -5,12 +5,16 @@ import '../domain/birthday.dart';
 import '../main.dart';
 import '../theme/tokens.dart';
 import 'format.dart';
+import 'motion.dart';
 import 'person_edit_screen.dart';
 import 'widgets.dart';
 
 class PersonScreen extends StatelessWidget {
-  const PersonScreen({super.key, required this.personId});
+  const PersonScreen({super.key, required this.personId, this.heroTag});
   final int personId;
+
+  /// Tag of the ring the user tapped, for a shared-element transition.
+  final String? heroTag;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +44,12 @@ class PersonScreen extends StatelessWidget {
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                     const Spacer(),
+                    Hero(
+                      tag: heroTag ?? 'person-ring-${p.id}',
+                      child: PersonRing(
+                          person: p, size: 56, today: n.isToday),
+                    ),
+                    const Spacer(),
                     RoundIconButton(
                       icon: Icons.edit_outlined,
                       tooltip: 'Profil bearbeiten',
@@ -50,7 +60,8 @@ class PersonScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: Nl.s5),
-                CountdownHero(
+                AnimatedCountdownHero(
+                  celebrate: n.isToday,
                   lead: n.isToday
                       ? '$name hat heute Geburtstag'
                       : '$name ${n.turning != null ? 'wird' : 'hat Geburtstag'} ${inDays(n.daysUntil)}',

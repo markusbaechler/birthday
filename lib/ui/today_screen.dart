@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/database.dart';
 import '../main.dart';
 import '../theme/tokens.dart';
 import 'format.dart';
 import 'import_screen.dart';
+import 'motion.dart';
 import 'person_edit_screen.dart';
 import 'person_screen.dart';
 import 'widgets.dart';
@@ -44,23 +46,34 @@ class TodayScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: Nl.s5),
-            InkWell(
-              onTap: () => _open(context, first.person),
-              child: _Hero(first),
+            PressScale(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _open(context, first.person),
+                child: _Hero(first),
+              ),
             ),
             const SizedBox(height: Nl.s5),
             if (first.next.daysUntil > 30)
-              const NlCard(
+              const FadeSlideIn(
+                delay: Duration(milliseconds: 1500),
+                child: NlCard(
                 child: Text(
                   'Ruhige Wochen. In den nächsten 30 Tagen hat niemand Geburtstag.',
                   style: Nl.body,
                 ),
-              ),
+              )),
             if (rest.isNotEmpty) ...[
-              const SectionLabel('Demnächst'),
+              const FadeSlideIn(
+                delay: Duration(milliseconds: 1300),
+                child: SectionLabel('Demnächst'),
+              ),
               const SizedBox(height: Nl.s1),
               for (var i = 0; i < rest.length; i++)
-                _UpcomingRow(rest[i], last: i == rest.length - 1),
+                FadeSlideIn(
+                  delay: Duration(milliseconds: 1400 + 70 * (i < 8 ? i : 8)),
+                  child: _UpcomingRow(rest[i], last: i == rest.length - 1),
+                ),
             ],
           ],
         );
@@ -68,8 +81,12 @@ class TodayScreen extends StatelessWidget {
     );
   }
 
-  static void _open(BuildContext context, Person p) => Navigator.of(context)
-      .push(MaterialPageRoute(builder: (_) => PersonScreen(personId: p.id)));
+  static void _open(BuildContext context, Person p) {
+    HapticFeedback.selectionClick();
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) =>
+            PersonScreen(personId: p.id, heroTag: 'today-ring-${p.id}')));
+  }
 }
 
 class _Hero extends StatelessWidget {
@@ -104,12 +121,14 @@ class _Hero extends StatelessWidget {
       caption =
           '${n.daysUntil == 1 ? 'Tag' : 'Tagen'} · ${formatLong(n.date)}';
     }
-    return CountdownHero(
+    return AnimatedCountdownHero(
+      key: ValueKey('hero-${p.id}-$number'),
       lead: lead,
       number: number,
       numberSize: numberSize,
       caption: caption,
       color: color,
+      celebrate: today,
     );
   }
 }
@@ -127,7 +146,8 @@ class _UpcomingRow extends StatelessWidget {
       formatShort(n.date),
       if (n.turning != null) '${n.turning}',
     ].join(' · ');
-    return InkWell(
+    return PressScale(
+      child: InkWell(
       onTap: () => TodayScreen._open(context, p),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: Nl.s3),
@@ -136,7 +156,10 @@ class _UpcomingRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            PersonRing(person: p, today: n.isToday),
+            Hero(
+              tag: 'today-ring-${p.id}',
+              child: PersonRing(person: p, today: n.isToday),
+            ),
             const SizedBox(width: Nl.s4),
             Expanded(
               child: Column(
@@ -153,7 +176,7 @@ class _UpcomingRow extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'data/database.dart';
+import 'data/widget_sync.dart';
 import 'theme/app_theme.dart';
 import 'ui/people_screen.dart';
 import 'ui/settings_screen.dart';
@@ -9,7 +10,9 @@ import 'ui/today_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(GeburtstageApp(db: AppDatabase()));
+  final db = AppDatabase();
+  WidgetSync(db).start();
+  runApp(GeburtstageApp(db: db));
 }
 
 /// Gives every screen access to the database.

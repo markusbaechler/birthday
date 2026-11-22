@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../ui/motion.dart';
 import 'tokens.dart';
 
 ThemeData buildTheme() {
@@ -17,6 +18,10 @@ ThemeData buildTheme() {
   final base = ThemeData(useMaterial3: true, colorScheme: scheme);
   return base.copyWith(
     scaffoldBackgroundColor: Nl.bg,
+    pageTransitionsTheme: const PageTransitionsTheme(builders: {
+      TargetPlatform.android: FadeThroughPageTransitionsBuilder(),
+      TargetPlatform.iOS: FadeThroughPageTransitionsBuilder(),
+    }),
     dividerColor: Nl.divider,
     dividerTheme: const DividerThemeData(color: Nl.divider, thickness: 1, space: 1),
     appBarTheme: const AppBarTheme(
