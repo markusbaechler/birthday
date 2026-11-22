@@ -1,10 +1,10 @@
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../data/database.dart';
 import '../theme/tokens.dart';
+import 'ambient.dart';
 
 /// Round avatar with a hairline ring in the person's colour:
 /// the contact photo, or initials on a faint tint.
@@ -56,14 +56,16 @@ class PersonAvatar extends StatelessWidget {
 }
 
 /// Large backdrop for a person: the photo, or the brand motif when there is
-/// no photo (concentric hairline rings in the person's colour, soft light
-/// behind the number).
+/// no photo. With [clock] and [tilt] it lives: rings breathe and ripple,
+/// photo and rings shift against the device tilt.
 class PersonBackdrop extends StatelessWidget {
   const PersonBackdrop({
     super.key,
     required this.person,
     required this.color,
     this.parallax = 0,
+    this.clock,
+    this.tilt,
   });
 
   final Person person;
@@ -71,16 +73,26 @@ class PersonBackdrop extends StatelessWidget {
 
   /// -1 … 1: horizontal shift for a parallax effect while swiping.
   final double parallax;
+  final ValueListenable<double>? clock;
+  final ValueListenable<Offset>? tilt;
+
+  static final _still = ValueNotifier<double>(0);
+  static final _flat = ValueNotifier<Offset>(Offset.zero);
 
   @override
   Widget build(BuildContext context) {
     final Uint8List? photo = person.photo;
+    final tiltL = tilt ?? _flat;
     if (photo != null) {
       return ClipRect(
-        child: Transform.translate(
-          offset: Offset(parallax * 40, 0),
+        child: ValueListenableBuilder<Offset>(
+          valueListenable: tiltL,
+          builder: (context, tl, child) => Transform.translate(
+            offset: Offset(parallax * 40 + tl.dx * 18, tl.dy * 14),
+            child: child,
+          ),
           child: Transform.scale(
-            scale: 1.15,
+            scale: 1.18,
             child: Image.memory(photo,
                 fit: BoxFit.cover,
                 gaplessPlayback: true,
@@ -91,23 +103,30 @@ class PersonBackdrop extends StatelessWidget {
         ),
       );
     }
-    return CustomPaint(
-      painter: _MotifPainter(color, parallax),
-      child: const SizedBox.expand(),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        CustomPaint(painter: _GlowPainter(color)),
+        CustomPaint(
+          painter: LivingRingsPainter(
+            color: color,
+            clock: clock ?? _still,
+            tilt: tiltL,
+            parallax: parallax,
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _MotifPainter extends CustomPainter {
-  _MotifPainter(this.color, this.parallax);
+class _GlowPainter extends CustomPainter {
+  const _GlowPainter(this.color);
   final Color color;
-  final double parallax;
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = Nl.surface);
-
-    // Soft light low left, where the big number sits.
     final glowCenter = Offset(size.width * 0.25, size.height * 0.78);
     final glowRadius = size.width * 0.9;
     canvas.drawCircle(
@@ -119,20 +138,8 @@ class _MotifPainter extends CustomPainter {
           color.withValues(alpha: 0),
         ]).createShader(Rect.fromCircle(center: glowCenter, radius: glowRadius)),
     );
-
-    // Concentric hairline rings, top right, bleeding off the card.
-    final c = Offset(size.width * 0.92 + parallax * 30, size.height * 0.18);
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    for (var i = 0; i < 5; i++) {
-      final r = size.width * (0.22 + i * 0.13);
-      ring.color = color.withValues(alpha: math.max(0.05, 0.32 - i * 0.06));
-      canvas.drawCircle(c, r, ring);
-    }
   }
 
   @override
-  bool shouldRepaint(_MotifPainter old) =>
-      old.color != color || old.parallax != parallax;
+  bool shouldRepaint(_GlowPainter old) => old.color != color;
 }

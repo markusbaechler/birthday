@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../data/database.dart';
 import '../main.dart';
 import '../theme/tokens.dart';
+import 'ambient.dart';
 import 'art.dart';
 import 'celebration.dart';
 import 'format.dart';
@@ -15,9 +17,10 @@ import 'person_edit_screen.dart';
 import 'person_screen.dart';
 import 'widgets.dart';
 
-/// «Heute»: the next birthdays as large swipeable cards (photo or colour
-/// light, parallax, counting number), ambient light in the colour of the
-/// current card, and a quiet list of what follows.
+/// «Heute»: every upcoming birthday as a card, one way to browse:
+/// swipe the cards or tap a face in the strip below. Cards turn in 3D while
+/// swiping, react to the device tilt and never stand still (breathing rings,
+/// ripples, a light sweep over the number).
 class TodayScreen extends StatefulWidget {
   const TodayScreen({super.key});
 
@@ -25,22 +28,53 @@ class TodayScreen extends StatefulWidget {
   State<TodayScreen> createState() => _TodayScreenState();
 }
 
-class _TodayScreenState extends State<TodayScreen> {
-  static const _cardCount = 8;
-  final _pages = PageController(viewportFraction: 0.86);
+class _TodayScreenState extends State<TodayScreen>
+    with SingleTickerProviderStateMixin {
+  static const _maxCards = 40;
+  static const _stripItem = 64.0;
+  final _pages = PageController(viewportFraction: 0.84);
+  final _strip = ScrollController();
+  late final Ambient _ambient = Ambient(this);
   var _page = 0.0;
   var _celebrationChecked = false;
 
   @override
   void initState() {
     super.initState();
-    _pages.addListener(() => setState(() => _page = _pages.page ?? 0));
+    _pages.addListener(() {
+      setState(() => _page = _pages.page ?? 0);
+      _followStrip();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ambient.start(
+        reduceMotion: MediaQuery.maybeOf(context)?.disableAnimations ?? false);
   }
 
   @override
   void dispose() {
+    _ambient.dispose();
     _pages.dispose();
+    _strip.dispose();
     super.dispose();
+  }
+
+  void _followStrip() {
+    if (!_strip.hasClients) return;
+    final viewport = _strip.position.viewportDimension;
+    final target = (_page * _stripItem - viewport / 2 + _stripItem / 2 + Nl.s5)
+        .clamp(0.0, _strip.position.maxScrollExtent);
+    _strip.jumpTo(target);
+  }
+
+  void _goTo(int i) {
+    HapticFeedback.selectionClick();
+    final distance = math.min(8, (i - _page).abs().round());
+    _pages.animateToPage(i,
+        duration: Duration(milliseconds: 350 + 60 * distance), curve: kEase);
   }
 
   void _maybeCelebrate(List<Upcoming> upcoming) {
@@ -75,11 +109,10 @@ class _TodayScreenState extends State<TodayScreen> {
         final people = snapshot.data!;
         if (people.isEmpty) return const _EmptyStart();
         final today = DateTime.now();
-        final upcoming = upcomingFor(people, today);
-        _maybeCelebrate(upcoming);
-        final cards = upcoming.take(_cardCount).toList();
-        final rest = upcoming.skip(_cardCount).take(12).toList();
-        final current = cards[_page.round().clamp(0, cards.length - 1)];
+        final cards = upcomingFor(people, today).take(_maxCards).toList();
+        _maybeCelebrate(cards);
+        final index = _page.round().clamp(0, cards.length - 1);
+        final current = cards[index];
         final ambient = Nl.personColor(current.person.colorIndex,
             today: current.next.isToday);
 
@@ -87,10 +120,10 @@ class _TodayScreenState extends State<TodayScreen> {
           children: [
             // Ambient light in the colour of the current card.
             Positioned(
-              top: -160,
+              top: -180,
               left: -80,
               right: -80,
-              height: 520,
+              height: 560,
               child: IgnorePointer(
                 child: TweenAnimationBuilder<Color?>(
                   tween: ColorTween(end: ambient),
@@ -99,7 +132,7 @@ class _TodayScreenState extends State<TodayScreen> {
                   builder: (context, c, _) => DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: RadialGradient(colors: [
-                        (c ?? ambient).withValues(alpha: 0.22),
+                        (c ?? ambient).withValues(alpha: 0.24),
                         (c ?? ambient).withValues(alpha: 0),
                       ]),
                     ),
@@ -107,11 +140,11 @@ class _TodayScreenState extends State<TodayScreen> {
                 ),
               ),
             ),
-            ListView(
-              padding: const EdgeInsets.only(top: Nl.s6, bottom: 120),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Nl.s5),
+                  padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s6, Nl.s5, 0),
                   child: Row(
                     children: [
                       Expanded(child: SectionLabel(formatToday(today))),
@@ -126,53 +159,78 @@ class _TodayScreenState extends State<TodayScreen> {
                   ),
                 ),
                 const SizedBox(height: Nl.s4),
-                SizedBox(
-                  height: 468,
+                Expanded(
                   child: PageView.builder(
                     controller: _pages,
                     itemCount: cards.length,
                     onPageChanged: (_) => HapticFeedback.selectionClick(),
-                    itemBuilder: (context, i) {
-                      final delta = (i - _page).clamp(-1.0, 1.0);
-                      return _BirthdayCard(
-                        u: cards[i],
-                        delta: delta,
-                        active: i == _page.round(),
-                        entranceDelay: Duration(milliseconds: i == 0 ? 0 : 200),
-                      );
-                    },
+                    itemBuilder: (context, i) => _BirthdayCard(
+                      u: cards[i],
+                      delta: (i - _page).clamp(-1.0, 1.0),
+                      active: i == index,
+                      ambient: _ambient,
+                    ),
                   ),
                 ),
                 const SizedBox(height: Nl.s4),
-                _Dots(count: cards.length, page: _page),
-                if (rest.isNotEmpty) ...[
-                  const SizedBox(height: Nl.s5),
-                  Padding(
+                SizedBox(
+                  height: 76,
+                  child: ListView.builder(
+                    controller: _strip,
+                    scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: Nl.s5),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const FadeSlideIn(
-                          delay: Duration(milliseconds: 900),
-                          child: SectionLabel('Danach'),
-                        ),
-                        const SizedBox(height: Nl.s1),
-                        for (var i = 0; i < rest.length; i++)
-                          FadeSlideIn(
-                            delay: Duration(
-                                milliseconds: 1000 + 60 * (i < 8 ? i : 8)),
-                            child: _UpcomingRow(rest[i],
-                                last: i == rest.length - 1),
-                          ),
-                      ],
+                    itemCount: cards.length,
+                    itemExtent: _stripItem,
+                    itemBuilder: (context, i) => _StripFace(
+                      u: cards[i],
+                      focus: (1 - (_page - i).abs()).clamp(0.0, 1.0),
+                      onTap: () => _goTo(i),
                     ),
                   ),
-                ],
+                ),
+                const SizedBox(height: 104), // room for the glass navigation
               ],
             ),
           ],
         );
       },
+    );
+  }
+}
+
+/// A face in the strip below the cards. [focus] 1 = current card.
+class _StripFace extends StatelessWidget {
+  const _StripFace({required this.u, required this.focus, required this.onTap});
+  final Upcoming u;
+  final double focus;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = u.next;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Transform.scale(
+            scale: 0.82 + 0.18 * focus,
+            child: Opacity(
+              opacity: 0.45 + 0.55 * focus,
+              child: PersonRing(person: u.person, size: 44, today: n.isToday),
+            ),
+          ),
+          const SizedBox(height: Nl.s1),
+          Text(
+            n.isToday ? 'heute' : '${n.date.day}.${n.date.month}.',
+            style: Nl.caption.copyWith(
+              fontSize: 11.5,
+              color: Color.lerp(Nl.muted, Nl.ink, focus),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -183,93 +241,113 @@ class _BirthdayCard extends StatelessWidget {
     required this.u,
     required this.delta,
     required this.active,
-    required this.entranceDelay,
+    required this.ambient,
   });
 
   final Upcoming u;
   final double delta;
   final bool active;
-  final Duration entranceDelay;
+  final Ambient ambient;
 
   @override
   Widget build(BuildContext context) {
     final p = u.person;
     final n = u.next;
-    final name = displayName(p);
     final color = Nl.personColor(p.colorIndex, today: n.isToday);
-    final scale = 1 - 0.07 * delta.abs();
-    final opacity = 1 - 0.45 * delta.abs();
-
     final hero = heroTextFor(u);
+    final shrink = 1 - 0.08 * delta.abs();
 
-    return Transform.scale(
-      scale: scale,
-      child: Opacity(
-        opacity: opacity,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Nl.s2),
-          child: PressScale(
-            child: GestureDetector(
-              onTap: () => _TodayScreenState.open(context, p,
-                  heroTag: 'card-ring-${p.id}'),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(32),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Nl.border),
-                    borderRadius: BorderRadius.circular(32),
-                  ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      PersonBackdrop(person: p, color: color, parallax: delta),
-                      // Scrim so the text always reads on the photo.
-                      const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            stops: [0.0, 0.35, 1.0],
-                            colors: [
-                              Color(0x330E0C12),
-                              Color(0x000E0C12),
-                              Color(0xF00E0C12),
-                            ],
+    // 3D: the card turns away around its vertical axis while swiping.
+    final transform = Matrix4.identity()
+      ..setEntry(3, 2, 0.0012)
+      ..rotateY(-delta * 0.55);
+
+    return Transform(
+      alignment: delta > 0 ? Alignment.centerLeft : Alignment.centerRight,
+      transform: transform,
+      child: Transform.scale(
+        scale: shrink,
+        child: Opacity(
+          opacity: 1 - 0.5 * delta.abs(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Nl.s2),
+            child: PressScale(
+              child: GestureDetector(
+                onTap: () => _TodayScreenState.open(context, p,
+                    heroTag: 'card-ring-${p.id}'),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(32),
+                  child: DecoratedBox(
+                    position: DecorationPosition.foreground,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Nl.border),
+                      borderRadius: BorderRadius.circular(32),
+                    ),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        PersonBackdrop(
+                          person: p,
+                          color: color,
+                          parallax: delta,
+                          clock: ambient.clock,
+                          tilt: ambient.tilt,
+                        ),
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              stops: [0.0, 0.4, 1.0],
+                              colors: [
+                                Color(0x330E0C12),
+                                Color(0x000E0C12),
+                                Color(0xF00E0C12),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      if (n.isToday) const SparkField(),
-                      Positioned(
-                        left: Nl.s4,
-                        top: Nl.s4,
-                        child: _GlassChip(
-                          text: n.isToday ? 'Heute' : formatShort(n.date),
-                          highlight: n.isToday,
+                        if (n.isToday) const SparkField(),
+                        Positioned(
+                          left: Nl.s4,
+                          top: Nl.s4,
+                          child: _GlassChip(
+                            text: n.isToday ? 'Heute' : formatShort(n.date),
+                            highlight: n.isToday,
+                          ),
                         ),
-                      ),
-                      Positioned(
-                        right: Nl.s4,
-                        top: Nl.s4,
-                        child: Hero(
-                          tag: 'card-ring-${p.id}',
-                          child: PersonRing(person: p, size: 48, today: n.isToday),
+                        Positioned(
+                          right: Nl.s4,
+                          top: Nl.s4,
+                          child: Hero(
+                            tag: 'card-ring-${p.id}',
+                            child: PersonRing(
+                                person: p, size: 48, today: n.isToday),
+                          ),
                         ),
-                      ),
-                      Positioned(
-                        left: Nl.s5,
-                        right: Nl.s5,
-                        bottom: Nl.s5,
-                        child: _CardText(
-                          key: ValueKey('card-${p.id}-${hero.big}-$active'),
-                          lead: hero.lead,
-                          number: hero.big,
-                          caption: hero.caption,
-                          color: color,
-                          animate: active,
-                          delay: entranceDelay,
+                        Positioned(
+                          left: Nl.s5,
+                          right: Nl.s5,
+                          bottom: Nl.s5,
+                          // The text floats slightly against the tilt: depth.
+                          child: ValueListenableBuilder<Offset>(
+                            valueListenable: ambient.tilt,
+                            builder: (context, tl, child) => Transform.translate(
+                              offset: Offset(-tl.dx * 6, -tl.dy * 4),
+                              child: child,
+                            ),
+                            child: _CardText(
+                              key: ValueKey('card-${p.id}-${hero.big}-$active'),
+                              lead: hero.lead,
+                              big: hero.big,
+                              caption: hero.caption,
+                              color: color,
+                              animate: active,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -281,25 +359,23 @@ class _BirthdayCard extends StatelessWidget {
   }
 }
 
-/// Lead, counting number and caption of a card. Counts up when the card
-/// becomes active.
+/// Lead, big age or name, caption. When the card becomes active the age
+/// counts up, lands with a haptic tick and a light sweeps across it.
 class _CardText extends StatefulWidget {
   const _CardText({
     super.key,
     required this.lead,
-    required this.number,
+    required this.big,
     required this.caption,
     required this.color,
     required this.animate,
-    required this.delay,
   });
 
   final String lead;
-  final String number;
+  final String big;
   final String caption;
   final Color color;
   final bool animate;
-  final Duration delay;
 
   @override
   State<_CardText> createState() => _CardTextState();
@@ -307,8 +383,9 @@ class _CardText extends StatefulWidget {
 
 class _CardTextState extends State<_CardText>
     with SingleTickerProviderStateMixin {
+  // 0–0.6 count up, 0.6 tick, 0.62–1.0 light sweep.
   late final AnimationController _c = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1400));
+      vsync: this, duration: const Duration(milliseconds: 2300));
   var _started = false;
   var _ticked = false;
 
@@ -316,7 +393,7 @@ class _CardTextState extends State<_CardText>
   void initState() {
     super.initState();
     _c.addListener(() {
-      if (!_ticked && _c.value > 0.92) {
+      if (!_ticked && _c.value > 0.58) {
         _ticked = true;
         if (widget.animate) HapticFeedback.lightImpact();
       }
@@ -333,9 +410,7 @@ class _CardTextState extends State<_CardText>
       _c.value = 1;
       _ticked = true;
     } else {
-      Future.delayed(widget.delay, () {
-        if (mounted) _c.forward();
-      });
+      _c.forward();
     }
   }
 
@@ -345,17 +420,31 @@ class _CardTextState extends State<_CardText>
     super.dispose();
   }
 
+  double _seg(double t, double a, double b) =>
+      kEase.transform(((t - a) / (b - a)).clamp(0.0, 1.0));
+
   @override
   Widget build(BuildContext context) {
-    final target = int.tryParse(widget.number);
+    final target = int.tryParse(widget.big);
     return AnimatedBuilder(
       animation: _c,
       builder: (context, _) {
         final t = _c.value;
-        final lead = kEase.transform((t / 0.35).clamp(0.0, 1.0));
-        final count = kEase.transform(((t - 0.1) / 0.85).clamp(0.0, 1.0));
-        final caption = kEase.transform(((t - 0.7) / 0.3).clamp(0.0, 1.0));
-        final shown = target == null ? widget.number : '${(target * count).round()}';
+        final lead = _seg(t, 0, 0.2);
+        final count = _seg(t, 0.05, 0.6);
+        final caption = _seg(t, 0.45, 0.7);
+        final sweep = ((t - 0.62) / 0.38).clamp(0.0, 1.0);
+        final shown =
+            target == null ? widget.big : '${(target * count).round()}';
+        final bigText = Text(
+          shown,
+          maxLines: 1,
+          style: Nl.countdown.copyWith(
+            color: widget.color,
+            fontSize: target == null ? 104 : 148,
+            height: 1.0,
+          ),
+        );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -365,27 +454,40 @@ class _CardTextState extends State<_CardText>
               child: Text(widget.lead, style: Nl.lead.copyWith(color: Nl.ink)),
             ),
             Transform.translate(
-              offset: Offset(0, 12 * (1 - count)),
+              offset: Offset(0, 14 * (1 - count)),
               child: Opacity(
                 opacity: target == null ? count : 1,
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    shown,
-                    maxLines: 1,
-                    style: Nl.countdown.copyWith(
-                        color: widget.color,
-                        fontSize: target == null ? 104 : 140,
-                        height: 1.0),
-                  ),
+                  child: sweep <= 0 || sweep >= 1
+                      ? bigText
+                      : ShaderMask(
+                          blendMode: BlendMode.srcATop,
+                          shaderCallback: (rect) => LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              Colors.white.withValues(alpha: 0),
+                              Colors.white.withValues(alpha: 0.85),
+                              Colors.white.withValues(alpha: 0),
+                            ],
+                            stops: [
+                              (sweep * 1.4 - 0.4).clamp(0.0, 1.0),
+                              (sweep * 1.4 - 0.2).clamp(0.0, 1.0),
+                              (sweep * 1.4).clamp(0.0, 1.0),
+                            ],
+                          ).createShader(rect),
+                          child: bigText,
+                        ),
                 ),
               ),
             ),
             const SizedBox(height: Nl.s2),
             Opacity(
               opacity: caption,
-              child: Text(widget.caption, style: Nl.bodySmall.copyWith(color: Nl.inkSoft)),
+              child: Text(widget.caption,
+                  style: Nl.bodySmall.copyWith(color: Nl.inkSoft)),
             ),
           ],
         );
@@ -405,91 +507,22 @@ class _GlassChip extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: Nl.s3, vertical: Nl.s1 + 2),
+            padding: const EdgeInsets.symmetric(
+                horizontal: Nl.s3, vertical: Nl.s1 + 2),
             decoration: BoxDecoration(
               color: Nl.bg.withValues(alpha: 0.35),
               borderRadius: BorderRadius.circular(Nl.rS),
               border: Border.all(
-                  color: highlight ? Nl.accent : Colors.white.withValues(alpha: 0.12)),
+                  color: highlight
+                      ? Nl.accent
+                      : Colors.white.withValues(alpha: 0.12)),
             ),
             child: Text(text,
-                style: Nl.caption.copyWith(color: highlight ? Nl.accent : Nl.ink)),
+                style: Nl.caption
+                    .copyWith(color: highlight ? Nl.accent : Nl.ink)),
           ),
         ),
       );
-}
-
-class _Dots extends StatelessWidget {
-  const _Dots({required this.count, required this.page});
-  final int count;
-  final double page;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var i = 0; i < count; i++)
-            Builder(builder: (context) {
-              final focus = (1 - (page - i).abs()).clamp(0.0, 1.0);
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: 4 + 16 * focus,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Color.lerp(Nl.borderControl, Nl.accent, focus),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              );
-            }),
-        ],
-      );
-}
-
-class _UpcomingRow extends StatelessWidget {
-  const _UpcomingRow(this.u, {required this.last});
-  final Upcoming u;
-  final bool last;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = u.person;
-    final n = u.next;
-    final sub = [
-      formatShort(n.date),
-      if (n.turning != null) 'wird ${n.turning}',
-    ].join(' · ');
-
-    return PressScale(
-      child: InkWell(
-        onTap: () => _TodayScreenState.open(context, p, heroTag: 'today-ring-${p.id}'),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: Nl.s3),
-          decoration: BoxDecoration(
-            border: last ? null : const Border(bottom: BorderSide(color: Nl.divider)),
-          ),
-          child: Row(
-            children: [
-              Hero(
-                tag: 'today-ring-${p.id}',
-                child: PersonRing(person: p, today: n.isToday),
-              ),
-              const SizedBox(width: Nl.s4),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(fullName(p), style: Nl.body.copyWith(color: Nl.ink)),
-                    Text(sub, style: Nl.caption),
-                  ],
-                ),
-              ),
-              Text(inDays(n.daysUntil), style: Nl.caption),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _EmptyStart extends StatelessWidget {
