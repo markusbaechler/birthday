@@ -73,13 +73,9 @@ class BackupService {
 
   /// Lets the user pick a backup file. Returns null if cancelled.
   Future<Map<String, dynamic>?> pickBackup() async {
-    final result = await FilePicker.platform.pickFiles(
-      // FileType.any: some Android pickers do not know a MIME type for .json.
-      type: FileType.any,
-      withData: true,
-    );
-    final bytes = result?.files.single.bytes;
-    if (bytes == null) return null;
+    final file = await FilePicker.pickFile();
+    if (file == null) return null;
+    final bytes = await file.readAsBytes();
     final decoded = jsonDecode(utf8.decode(bytes));
     if (decoded is! Map<String, dynamic> ||
         decoded['format'] != 'geburtstage-backup') {
