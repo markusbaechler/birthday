@@ -3,8 +3,11 @@
 def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
 
 beforeSettings { settings ->
+    // Declaring plugin repositories drops the implicit Gradle Plugin Portal,
+    // so it is added back after the mirror.
     settings.pluginManagement.repositories {
         maven { url mirror }
+        gradlePluginPortal()
     }
     settings.dependencyResolutionManagement.repositories {
         maven { url mirror }
