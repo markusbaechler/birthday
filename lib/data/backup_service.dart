@@ -65,8 +65,10 @@ class BackupService {
     final stamp = DateTime.now().toIso8601String().substring(0, 10);
     final file = File('${dir.path}/geburtstage-backup-$stamp.json');
     await file.writeAsString(const JsonEncoder.withIndent('  ').convert(data));
-    await Share.shareXFiles([XFile(file.path, mimeType: 'application/json')],
-        subject: 'Geburtstage: Backup vom $stamp');
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(file.path, mimeType: 'application/json')],
+      subject: 'Geburtstage: Backup vom $stamp',
+    ));
   }
 
   /// Lets the user pick a backup file. Returns null if cancelled.
