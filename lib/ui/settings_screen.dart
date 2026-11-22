@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/ai_service.dart';
 import '../data/backup_service.dart';
 import '../main.dart';
 import '../theme/tokens.dart';
@@ -91,10 +92,14 @@ class SettingsScreen extends StatelessWidget {
         row('Sicherung wiederherstellen', 'Ersetzt alle Daten in der App',
             'Wählen', () => _restore(context)),
         const SizedBox(height: Nl.s6),
+        const SectionLabel('Glückwunsch-KI'),
+        const SizedBox(height: Nl.s2),
+        const _ApiKeyRow(),
+        const SizedBox(height: Nl.s6),
         const SectionLabel('In Arbeit'),
         const SizedBox(height: Nl.s2),
         const Text(
-          'Phase 2: zuverlässige Erinnerungen. Phase 3: persönliche Glückwünsche. Phase 4: automatischer Versand per SMS.',
+          'Als Nächstes: automatischer Versand per SMS für Personen ohne WhatsApp, Erinnerungen ohne geplanten Gruss.',
           style: Nl.bodySmall,
         ),
         const SizedBox(height: Nl.s5),
@@ -102,4 +107,113 @@ class SettingsScreen extends StatelessWidget {
       ],
     );
   }
+}
+
+
+class _ApiKeyRow extends StatefulWidget {
+  const _ApiKeyRow();
+
+  @override
+  State<_ApiKeyRow> createState() => _ApiKeyRowState();
+}
+
+class _ApiKeyRowState extends State<_ApiKeyRow> {
+  bool? _hasKey;
+
+  @override
+  void initState() {
+    super.initState();
+    Secrets.apiKey().then((k) {
+      if (mounted) setState(() => _hasKey = k != null);
+    });
+  }
+
+  Future<void> _edit() async {
+    final controller = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+    final key = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('API-Schlüssel', style: Nl.title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Schlüssel von console.anthropic.com (beginnt mit «sk-ant-»). Er bleibt verschlüsselt auf diesem Handy.',
+              style: Nl.bodySmall,
+            ),
+            const SizedBox(height: Nl.s3),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              obscureText: true,
+              style: Nl.body,
+              decoration: const InputDecoration(hintText: 'sk-ant-…'),
+            ),
+          ],
+        ),
+        actions: [
+          if (_hasKey == true)
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, ''),
+                child: const Text('Entfernen', style: TextStyle(color: Nl.dangerInk))),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, controller.text),
+              child: const Text('Prüfen und speichern')),
+        ],
+      ),
+    );
+    if (key == null) return;
+    if (key.isEmpty) {
+      await Secrets.setApiKey(null);
+      if (mounted) setState(() => _hasKey = false);
+      return;
+    }
+    final ok = await AiService.testKey(key);
+    if (ok) await Secrets.setApiKey(key);
+    if (!mounted) return;
+    setState(() => _hasKey = ok || _hasKey == true);
+    messenger.showSnackBar(SnackBar(
+        content: Text(ok
+            ? 'Schlüssel funktioniert und ist gespeichert.'
+            : 'Der Schlüssel funktioniert nicht. Nichts gespeichert.')));
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: Nl.s3),
+        decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Nl.divider))),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Anthropic API-Schlüssel', style: Nl.body.copyWith(color: Nl.ink)),
+                  Text(
+                    _hasKey == null
+                        ? '…'
+                        : _hasKey!
+                            ? 'Hinterlegt, verschlüsselt'
+                            : 'Fehlt: ohne Schlüssel keine Entwürfe',
+                    style: Nl.caption.copyWith(
+                        color: _hasKey == true ? Nl.personGreen : Nl.muted),
+                  ),
+                ],
+              ),
+            ),
+            OutlinedButton(
+              onPressed: _edit,
+              style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(44, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: Nl.s4)),
+              child: Text(_hasKey == true ? 'Ändern' : 'Eintragen'),
+            ),
+          ],
+        ),
+      );
 }

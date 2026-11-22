@@ -6,6 +6,7 @@ import '../main.dart';
 import '../theme/tokens.dart';
 import 'format.dart';
 import 'art.dart';
+import 'greeting_editor.dart';
 import 'motion.dart';
 import 'person_edit_screen.dart';
 import 'widgets.dart';
@@ -104,6 +105,13 @@ class PersonScreen extends StatelessWidget {
                 }),
                 const SizedBox(height: Nl.s5),
                 _ProfileLine(person: p),
+                const SizedBox(height: Nl.s4),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => GreetingEditor(person: p))),
+                  icon: const Icon(Icons.edit_note, size: 20),
+                  label: const Text('Gruss schreiben und planen'),
+                ),
                 if (p.insiders.trim().isNotEmpty) ...[
                   const SizedBox(height: Nl.s5),
                   const SectionLabel('Insider und Erlebnisse'),

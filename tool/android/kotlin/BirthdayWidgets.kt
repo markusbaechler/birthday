@@ -102,8 +102,8 @@ object BirthdayCalc {
 
     fun color(n: Next): Int = if (n.days == 0) ROSE else PALETTE[Math.floorMod(n.entry.color, PALETTE.size)]
 
-    /** Big element: the age, or the name when the birth year is unknown. */
-    fun big(n: Next): String = n.turning?.toString() ?: n.entry.name
+    /** Big element: the first name. */
+    fun big(n: Next): String = n.entry.name
 
     fun whenText(n: Next): String = when (n.days) {
         0 -> "HEUTE"
@@ -111,8 +111,10 @@ object BirthdayCalc {
         else -> "IN ${n.days} TAGEN"
     }
 
-    fun below(n: Next): String =
-        if (n.turning != null) "${n.entry.name} · ${WEEKDAYS[n.weekday]}" else WEEKDAYS[n.weekday]
+    fun below(n: Next): String {
+        val day = "${WEEKDAYS[n.weekday]}, ${n.date.get(Calendar.DAY_OF_MONTH)}.${n.date.get(Calendar.MONTH) + 1}."
+        return if (n.turning != null) "wird ${n.turning} · $day" else day
+    }
 
     fun dateShort(n: Next): String =
         "${WEEKDAYS_SHORT[n.weekday]} ${n.date.get(Calendar.DAY_OF_MONTH)}.${n.date.get(Calendar.MONTH) + 1}."
@@ -237,7 +239,7 @@ private class WidgetPainter(private val context: Context, private val d: Float) 
         val bigPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = thin
             this.color = color
-            letterSpacing = if (n.turning != null) -0.04f else -0.02f
+            letterSpacing = -0.02f
         }
         val top = pad + dp(20f)
         val bottom = belowBaseline - dp(18f)

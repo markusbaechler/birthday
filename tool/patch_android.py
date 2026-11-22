@@ -32,12 +32,37 @@ for src in (OVERLAY / "res").rglob("*.xml"):
 text = manifest.read_text(encoding="utf-8")
 text = re.sub(r'android:label="[^"]*"', 'android:label="Geburtstage"', text, count=1)
 
-for perm in ["android.permission.READ_CONTACTS"]:
+for perm in [
+    "android.permission.READ_CONTACTS",
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.RECEIVE_BOOT_COMPLETED",
+    "android.permission.VIBRATE",
+    "android.permission.USE_EXACT_ALARM",
+]:
     if perm not in text:
         text = text.replace(
             "<application", f'<uses-permission android:name="{perm}"/>\n    <application', 1)
 
+if "SCHEDULE_EXACT_ALARM" not in text:
+    text = text.replace(
+        "<application",
+        '<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32"/>\n    <application', 1)
+
 receivers = ""
+# Scheduled notifications (flutter_local_notifications)
+if "ScheduledNotificationReceiver" not in text:
+    receivers += """
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+"""
 for name, info, label in [
     ("LargeBirthdayWidget", "widget_large_info", "widget_large_label"),
     ("SmallBirthdayWidget", "widget_small_info", "widget_small_label"),
@@ -57,3 +82,14 @@ text = text.replace("</application>", receivers + "    </application>", 1)
 manifest.write_text(text, encoding="utf-8")
 print("Patched", manifest)
 print(text)
+
+# 3. Gradle: core library desugaring (needed by flutter_local_notifications)
+gradle = ROOT / "android" / "app" / "build.gradle.kts"
+g = gradle.read_text(encoding="utf-8")
+if "isCoreLibraryDesugaringEnabled" not in g:
+    g = re.sub(r"compileOptions\s*\{", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true", g, count=1)
+if "desugar_jdk_libs" not in g:
+    g += '\ndependencies {\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n}\n'
+gradle.write_text(g, encoding="utf-8")
+print("Patched", gradle)
+print(g)

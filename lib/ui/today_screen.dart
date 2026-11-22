@@ -11,6 +11,7 @@ import 'ambient.dart';
 import 'art.dart';
 import 'celebration.dart';
 import 'format.dart';
+import 'greeting_editor.dart';
 import 'import_screen.dart';
 import 'motion.dart';
 import 'person_edit_screen.dart';
@@ -102,9 +103,15 @@ class _TodayScreenState extends State<TodayScreen>
   @override
   Widget build(BuildContext context) {
     final db = AppScope.of(context);
-    return StreamBuilder<List<Person>>(
+    return StreamBuilder<List<Greeting>>(
+      stream: db.watchGreetings(),
+      builder: (context, greetSnap) => StreamBuilder<List<Person>>(
       stream: db.watchPeople(),
       builder: (context, snapshot) {
+        final greetings = {
+          for (final g in greetSnap.data ?? const <Greeting>[])
+            '${g.personId}-${g.year}': g
+        };
         if (!snapshot.hasData) return const SizedBox.shrink();
         final people = snapshot.data!;
         if (people.isEmpty) return const _EmptyStart();
@@ -166,6 +173,8 @@ class _TodayScreenState extends State<TodayScreen>
                     onPageChanged: (_) => HapticFeedback.selectionClick(),
                     itemBuilder: (context, i) => _BirthdayCard(
                       u: cards[i],
+                      greeting: greetings[
+                          '${cards[i].person.id}-${cards[i].next.date.year}'],
                       delta: (i - _page).clamp(-1.0, 1.0),
                       active: i == index,
                       ambient: _ambient,
@@ -194,6 +203,7 @@ class _TodayScreenState extends State<TodayScreen>
           ],
         );
       },
+    ),
     );
   }
 }
@@ -239,12 +249,14 @@ class _StripFace extends StatelessWidget {
 class _BirthdayCard extends StatelessWidget {
   const _BirthdayCard({
     required this.u,
+    required this.greeting,
     required this.delta,
     required this.active,
     required this.ambient,
   });
 
   final Upcoming u;
+  final Greeting? greeting;
   final double delta;
   final bool active;
   final Ambient ambient;
@@ -311,9 +323,27 @@ class _BirthdayCard extends StatelessWidget {
                         Positioned(
                           left: Nl.s4,
                           top: Nl.s4,
-                          child: _GlassChip(
-                            text: n.isToday ? 'Heute' : formatShort(n.date),
-                            highlight: n.isToday,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _GlassChip(
+                                text: n.isToday ? 'Heute' : formatShort(n.date),
+                                highlight: n.isToday,
+                              ),
+                              const SizedBox(height: Nl.s2),
+                              GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                      builder: (_) => GreetingEditor(person: p)));
+                                },
+                                child: _GlassChip(
+                                  text: _greetingLabel(greeting),
+                                  icon: Icons.edit_note,
+                                  tint: _greetingColor(greeting),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         Positioned(
@@ -357,6 +387,23 @@ class _BirthdayCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _greetingLabel(Greeting? g) {
+  if (g == null || (g.draft ?? '').isEmpty) return 'Gruss schreiben';
+  if (g.status == GreetingStatus.sent) return 'Gruss gesendet';
+  if (g.status == GreetingStatus.scheduled && g.scheduledAt != null) {
+    final t = g.scheduledAt!;
+    return 'Geplant ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  }
+  return 'Entwurf bereit';
+}
+
+Color _greetingColor(Greeting? g) {
+  if (g == null || (g.draft ?? '').isEmpty) return Nl.ink;
+  if (g.status == GreetingStatus.scheduled) return Nl.personGreen;
+  if (g.status == GreetingStatus.sent) return Nl.muted;
+  return Nl.personAmber;
 }
 
 /// Lead, big age or name, caption. When the card becomes active the age
@@ -497,9 +544,11 @@ class _CardTextState extends State<_CardText>
 }
 
 class _GlassChip extends StatelessWidget {
-  const _GlassChip({required this.text, this.highlight = false});
+  const _GlassChip({required this.text, this.highlight = false, this.icon, this.tint});
   final String text;
   final bool highlight;
+  final IconData? icon;
+  final Color? tint;
 
   @override
   Widget build(BuildContext context) => ClipRRect(
@@ -517,9 +566,18 @@ class _GlassChip extends StatelessWidget {
                       ? Nl.accent
                       : Colors.white.withValues(alpha: 0.12)),
             ),
-            child: Text(text,
-                style: Nl.caption
-                    .copyWith(color: highlight ? Nl.accent : Nl.ink)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 16, color: tint ?? Nl.ink),
+                  const SizedBox(width: Nl.s1 + 2),
+                ],
+                Text(text,
+                    style: Nl.caption.copyWith(
+                        color: tint ?? (highlight ? Nl.accent : Nl.ink))),
+              ],
+            ),
           ),
         ),
       );

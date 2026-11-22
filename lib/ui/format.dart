@@ -53,8 +53,8 @@ List<Upcoming> upcomingFor(List<Person> people, DateTime today) {
   return list;
 }
 
-/// What a hero shows. The big element is the age, or the name when the
-/// birth year is unknown; days until the birthday are only ever small.
+/// What a hero shows: the first name is the big element; when and age are
+/// small lines around it.
 class HeroText {
   const HeroText(this.lead, this.big, this.caption);
   final String lead;
@@ -67,18 +67,17 @@ class HeroText {
 HeroText heroTextFor(Upcoming u) {
   final p = u.person;
   final n = u.next;
-  final name = displayName(p);
-  final when = n.isToday ? 'heute' : inDays(n.daysUntil);
-  if (n.turning != null) {
-    return HeroText(
-      n.isToday ? '$name wird heute' : '$name wird',
-      '${n.turning}',
-      n.isToday ? fullName(p) : '$when · ${formatLong(n.date)}',
-    );
-  }
+  final when = switch (n.daysUntil) {
+    0 => 'Heute',
+    1 => 'Morgen',
+    _ => 'In ${n.daysUntil} Tagen',
+  };
+  final age = n.turning == null
+      ? null
+      : (n.isToday ? 'wird heute ${n.turning}' : 'wird ${n.turning}');
   return HeroText(
-    n.isToday ? 'Heute hat Geburtstag' : 'Geburtstag $when',
-    name,
-    n.isToday ? fullName(p) : formatLong(n.date),
+    when,
+    displayName(p),
+    [if (age != null) age, formatLong(n.date)].join(' · '),
   );
 }

@@ -58,7 +58,14 @@ class Notes extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
-/// Sent and drafted greetings (filled from Phase 3 on).
+/// Greeting status values.
+abstract final class GreetingStatus {
+  static const draft = 'draft';
+  static const scheduled = 'scheduled';
+  static const sent = 'sent';
+}
+
+/// One greeting per person and birthday year: drafted, scheduled, sent.
 @DataClassName('Greeting')
 class Greetings extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -70,6 +77,12 @@ class Greetings extends Table {
   TextColumn get channel => text()();
   TextColumn get status => text().withDefault(const Constant('draft'))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// When the reminder with the ready text fires (local time).
+  DateTimeColumn get scheduledAt => dateTime().nullable()();
+
+  /// Last generated variants as JSON ([{"title","text"}]).
+  TextColumn get variants => text().nullable()();
 }
 
 @DriftDatabase(tables: [People, Notes, Greetings])
@@ -78,10 +91,16 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? driftDatabase(name: 'geburtstage'));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(greetings, greetings.scheduledAt);
+            await m.addColumn(greetings, greetings.variants);
+          }
+        },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
         },
@@ -117,6 +136,66 @@ class AppDatabase extends _$AppDatabase {
       (delete(notes)..where((n) => n.id.equals(id))).go();
 
   Future<List<Note>> allNotes() => select(notes).get();
+
+  // ---- Greetings
+
+  Stream<List<Greeting>> watchGreetings() => select(greetings).watch();
+
+  Future<Greeting?> greetingFor(int personId, int year) => (select(greetings)
+        ..where((g) => g.personId.equals(personId) & g.year.equals(year))
+        ..limit(1))
+      .getSingleOrNull();
+
+  Future<Greeting?> greetingById(int id) =>
+      (select(greetings)..where((g) => g.id.equals(id))).getSingleOrNull();
+
+  Future<List<Greeting>> scheduledGreetings() => (select(greetings)
+        ..where((g) => g.status.equals(GreetingStatus.scheduled)))
+      .get();
+
+  Future<List<Greeting>> sentGreetingsFor(int personId) => (select(greetings)
+        ..where((g) =>
+            g.personId.equals(personId) & g.status.equals(GreetingStatus.sent))
+        ..orderBy([(g) => OrderingTerm.desc(g.year)]))
+      .get();
+
+  /// Creates or updates the greeting of [personId] for [year].
+  Future<Greeting> saveGreeting({
+    required int personId,
+    required int year,
+    required String channel,
+    Value<String?> draft = const Value.absent(),
+    Value<String?> sentText = const Value.absent(),
+    Value<String> status = const Value.absent(),
+    Value<DateTime?> scheduledAt = const Value.absent(),
+    Value<String?> variants = const Value.absent(),
+  }) async {
+    final existing = await greetingFor(personId, year);
+    if (existing == null) {
+      final id = await into(greetings).insert(GreetingsCompanion.insert(
+        personId: personId,
+        year: year,
+        channel: channel,
+        draft: draft,
+        sentText: sentText,
+        status: status,
+        scheduledAt: scheduledAt,
+        variants: variants,
+      ));
+      return (await greetingById(id))!;
+    }
+    await (update(greetings)..where((g) => g.id.equals(existing.id))).write(
+      GreetingsCompanion(
+        channel: Value(channel),
+        draft: draft,
+        sentText: sentText,
+        status: status,
+        scheduledAt: scheduledAt,
+        variants: variants,
+      ),
+    );
+    return (await greetingById(existing.id))!;
+  }
 
   /// Replaces all data in one transaction (used by backup restore).
   Future<void> replaceAll(

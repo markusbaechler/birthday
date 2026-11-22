@@ -5,18 +5,25 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'data/database.dart';
+import 'data/greeting_service.dart';
 import 'data/photo_sync.dart';
 import 'data/widget_sync.dart';
 import 'theme/app_theme.dart';
 import 'ui/calendar_screen.dart';
 import 'ui/people_screen.dart';
+import 'ui/planner_screen.dart';
 import 'ui/settings_screen.dart';
 import 'ui/today_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final db = AppDatabase();
   WidgetSync(db).start();
+  try {
+    await GreetingService.init(db);
+  } catch (e) {
+    debugPrint('Greeting service failed: $e');
+  }
   runApp(GeburtstageApp(db: db));
   // Photos follow the contacts automatically, a moment after start.
   Future.delayed(const Duration(seconds: 3), () => PhotoSync(db).run());
@@ -82,6 +89,7 @@ class _HomeShellState extends State<HomeShell> {
           children: const [
             TodayScreen(),
             CalendarScreen(),
+            PlannerScreen(),
             PeopleScreen(),
             SettingsScreen(),
           ],
@@ -108,6 +116,8 @@ class _HomeShellState extends State<HomeShell> {
                     icon: Icon(Icons.cake_outlined), label: 'Heute'),
                 NavigationDestination(
                     icon: Icon(Icons.calendar_month_outlined), label: 'Kalender'),
+                NavigationDestination(
+                    icon: Icon(Icons.edit_note), label: 'Grüsse'),
                 NavigationDestination(
                     icon: Icon(Icons.people_outline), label: 'Personen'),
                 NavigationDestination(
