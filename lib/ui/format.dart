@@ -25,6 +25,26 @@ String formatToday(DateTime d) =>
 String displayName(Person p) =>
     (p.nickname?.trim().isNotEmpty ?? false) ? p.nickname!.trim() : p.firstName;
 
+/// Up to two initials, letters only: «Claudia (Gotte)» → «CG», not «C(».
+String initialsOf(Person p) {
+  final letter = RegExp(r'\p{L}', unicode: true);
+  return '${p.firstName} ${p.lastName}'
+      .split(RegExp(r'\s+'))
+      .map((w) => letter.firstMatch(w)?.group(0))
+      .whereType<String>()
+      .take(2)
+      .map((c) => c.toUpperCase())
+      .join();
+}
+
+/// The line under the big first name: the last name, or with a nickname
+/// as big element the full name. Null when there is nothing to add.
+String? surnameFor(Person p) {
+  final nick = p.nickname?.trim() ?? '';
+  final line = nick.isNotEmpty ? fullName(p) : p.lastName.trim();
+  return line.isEmpty ? null : line;
+}
+
 String fullName(Person p) => '${p.firstName} ${p.lastName}'.trim();
 
 /// «heute», «morgen», «in 5 Tagen»

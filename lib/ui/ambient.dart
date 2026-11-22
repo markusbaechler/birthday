@@ -15,6 +15,9 @@ class Ambient {
     });
   }
 
+  /// Off in screenshot tests, where there is no sensor plugin.
+  static var sensorsEnabled = true;
+
   final clock = ValueNotifier<double>(0);
   final tilt = ValueNotifier<Offset>(Offset.zero);
   late final Ticker _ticker;
@@ -29,6 +32,7 @@ class Ambient {
       return;
     }
     if (!_ticker.isActive) _ticker.start();
+    if (!sensorsEnabled) return;
     _sensor ??= accelerometerEventStream(
             samplingPeriod: const Duration(milliseconds: 33))
         .listen((e) {

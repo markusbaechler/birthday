@@ -1,0 +1,46 @@
+name: Screenshots
+
+on:
+  push:
+    branches: [design]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: shots
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Fetch display font (Roboto Flex, OFL)
+        run: |
+          mkdir -p assets/fonts
+          curl -fsSL --retry 3 -o assets/fonts/RobotoFlex.ttf \
+            "https://github.com/google/fonts/raw/main/ofl/robotoflex/RobotoFlex%5BGRAD,XOPQ,XTRA,YOPQ,YTAS,YTDE,YTFI,YTLC,YTUC,opsz,slnt,wdth,wght%5D.ttf"
+      - name: Packages and code
+        run: |
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Render screens
+        run: flutter test test_shots
+      - name: Publish to branch "shots"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd build/shots
+          git init -q -b shots
+          git add .
+          git -c user.name=ci -c user.email=ci@localhost commit -qm "Shots ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" shots

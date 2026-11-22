@@ -95,8 +95,22 @@ class _HomeShellState extends State<HomeShell> {
           ],
         ),
       ),
-      // Frosted glass navigation: content glides underneath.
-      bottomNavigationBar: ClipRect(
+      bottomNavigationBar: GlassNavBar(
+        index: _index,
+        onSelect: (i) => setState(() => _index = i),
+      ),
+    );
+  }
+}
+
+/// Frosted glass navigation: content glides underneath.
+class GlassNavBar extends StatelessWidget {
+  const GlassNavBar({super.key, required this.index, required this.onSelect});
+  final int index;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: DecoratedBox(
@@ -106,10 +120,10 @@ class _HomeShellState extends State<HomeShell> {
             ),
             child: NavigationBar(
               backgroundColor: Colors.transparent,
-              selectedIndex: _index,
+              selectedIndex: index,
               onDestinationSelected: (i) {
                 HapticFeedback.selectionClick();
-                setState(() => _index = i);
+                onSelect(i);
               },
               destinations: const [
                 NavigationDestination(
@@ -126,7 +140,5 @@ class _HomeShellState extends State<HomeShell> {
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
 }

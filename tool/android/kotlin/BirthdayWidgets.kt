@@ -295,8 +295,9 @@ private class WidgetPainter(private val context: Context, private val d: Float) 
         } else {
             val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = withAlpha(color, 0.14f) }
             c.drawCircle(cx, cy, inner, fill)
-            val initials = n.entry.full.split(" ").filter { it.isNotBlank() }.take(2)
-                .joinToString("") { it.substring(0, 1).uppercase() }
+            val initials = n.entry.full.split(" ")
+                .mapNotNull { w -> w.firstOrNull { it.isLetter() } }.take(2)
+                .joinToString("") { it.uppercase() }
             val t = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 typeface = light
                 textSize = size * 0.36f
