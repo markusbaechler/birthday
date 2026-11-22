@@ -77,15 +77,23 @@ Regeln:
 Antworte ausschliesslich mit JSON: {"variants":[{"title":"2-3 Wörter zur Idee","text":"…"},{…},{…}]} mit genau 3 Varianten.''';
 
   static const _imageSystem = """
-Du schreibst einen Bildprompt für ChatGPT (Bildgenerierung). Daraus entsteht eine persönliche Geburtstagskarte, die zusammen mit einem Gruss per WhatsApp verschickt wird.
-Regeln:
-- Schreibe den Prompt auf Deutsch, als direkte Anweisung an ChatGPT, 90 bis 160 Wörter, ein einziger Absatz.
-- Hochformat 4:5. Eine klare Bildidee statt vieler Einzelteile. Ein konkreter Stil (z. B. Risographie, Aquarell, Scherenschnitt, 3D-Knete, Linolschnitt, Fotografie), passend zu Ton und Beziehung.
-- Motive nur aus den Angaben (Insider, Notizen, Beziehung, Alter). Nichts erfinden. Fehlen Angaben: ein schönes, eigenständiges Motiv ohne persönliche Details.
-- Keine realen Personen nachbilden, keine Gesichter von echten Menschen, keine Marken und Logos.
-- Auf der Karte steht genau ein kurzer Schriftzug mit dem Vornamen, z. B. «Alles Gute, Silvia» oder in Mundart, wenn die Sprache Mundart ist. Schreibe den Schriftzug wörtlich in Anführungszeichen und verlange korrekte Rechtschreibung. Sonst kein Text im Bild.
-- Deutsch immer mit ss statt ß.
-Antworte nur mit dem Prompt, ohne Einleitung und ohne Anführungszeichen drumherum.""";
+Du bist Art Director und schreibst einen Bildprompt für eine Bild-KI. Daraus entsteht eine Geburtstagskarte, die als Bild per WhatsApp verschickt wird. Sie soll sofort als persönlich erkennbar sein und auf Handygrösse in einer Sekunde wirken.
+
+Vorgehen (nur im Kopf, nicht ausgeben):
+1. Sammle aus den Angaben alles Sichtbare: Hobbys, Orte, Gegenstände, Eigenheiten, Running Gags, das Alter. Übersetze Eigenschaften in Bilder (aus «immer zu spät» wird etwa eine Uhr, ein davonfahrender Zug, ein schmelzendes Zifferblatt).
+2. Entwickle drei verschiedene Bildideen mit je einer kleinen Pointe aus diesen Angaben. Wähle die originellste, die trotzdem auf einen Blick verständlich ist.
+3. Fehlen persönliche Angaben, wähle eine starke, elegante Idee rund ums Feiern und das Alter und erfinde keine Details über die Person.
+
+Ausgabe: der Prompt auf Deutsch (ss statt ß), genau diese sieben Zeilen, jede beginnt mit ihrem Label:
+Format: Hochformat 4:5, randlos, Geburtstagskarte.
+Bildidee: ein Satz, was man sieht und worin die Pointe liegt.
+Szene: 2 bis 4 Sätze mit Hauptmotiv, Nebenmotiven, Anordnung von vorne nach hinten, Blickführung, Perspektive. Konkret und gegenständlich, keine Adjektiv-Ketten.
+Stil: Medium und Technik präzise benannt (z. B. «Risographie-Druck in drei Farben mit leichtem Passerversatz und Papierkorn»).
+Farben und Licht: 3 bis 5 benannte Farben und die Lichtstimmung.
+Schrift: der Schriftzug wörtlich in «», höchstens fünf Wörter mit dem Vornamen (in Mundart, wenn die Sprache Mundart ist), dazu Schriftcharakter, Grösse und Position; ausdrücklich fehlerfrei geschrieben und gut lesbar; kein weiterer Text im Bild.
+Vermeiden: reale Personen und Gesichter echter Menschen, Marken, Logos, Wasserzeichen, Rahmen, zusätzlicher Text, generische Ballons und Konfetti (ausser sie sind Teil der Idee).
+
+Regeln: Motive nur aus den Angaben (Insider, Notizen, Beziehung, Alter, Gruss). Keine Nachnamen. Ist ein Stil vorgegeben, halte dich daran. Antworte nur mit den sieben Zeilen.""";
 
   /// What the AI may know about [p]: no phone, e-mail, last name or photo.
   Future<String> _facts(Person p) async {
@@ -153,33 +161,45 @@ Antworte nur mit dem Prompt, ohne Einleitung und ohne Anführungszeichen drumher
 
   /// A prompt for ChatGPT to design a birthday card for [p]. [greeting] sets
   /// the mood; it is not written onto the card.
-  Future<String> imagePrompt(Person p, {String? greeting, String? wish}) async {
+  Future<String> imagePrompt(Person p,
+      {String? greeting, String? wish, String? style, String? ai}) async {
     final facts = StringBuffer(await _facts(p));
+    if (ai != null) facts.writeln('Bild-KI: $ai');
+    if (style != null) facts.writeln('Stilvorgabe: $style');
     if (greeting != null && greeting.trim().isNotEmpty) {
       facts.writeln('Der Gruss, der mit der Karte geht (nur für die Stimmung): «${greeting.trim()}»');
     }
     if (wish != null && wish.trim().isNotEmpty) {
       facts.writeln('Wunsch für das Bild: ${wish.trim()}');
     }
-    final text = await _call(_imageSystem, facts.toString(), 700);
+    final text = await _call(_imageSystem, facts.toString(), 1500);
     final prompt = text.trim().replaceAll('ß', 'ss');
     if (prompt.isEmpty) throw const AiException('Die KI hat keinen Prompt geliefert.');
     return prompt;
   }
 
   /// A prompt without AI, from the profile alone (no API key needed).
-  static String fallbackImagePrompt(Person p) {
+  static String fallbackImagePrompt(Person p, {String? style}) {
     final name = p.nickname?.trim().isNotEmpty == true ? p.nickname!.trim() : p.firstName;
     final next = nextBirthday(
         day: p.birthDay, month: p.birthMonth, year: p.birthYear, today: DateTime.now());
-    final insiders = p.insiders.trim().replaceAll('\n', ', ');
+    final insiders = p.insiders
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    final age = next.turning;
     return [
-      'Gestalte eine Geburtstagskarte im Hochformat 4:5 als moderne Illustration im Risographie-Stil, mit wenigen kräftigen Farben auf warmem Papierton und feiner Körnung.',
-      if (next.turning != null) 'Anlass: ${next.turning}. Geburtstag; die Zahl darf als grafisches Element vorkommen.',
-      if (insiders.isNotEmpty) 'Baue diese persönlichen Motive ein: $insiders.',
-      'Viel Luft, eine klare Bildidee, keine realen Personen, keine Logos.',
-      'Einziger Text im Bild, korrekt geschrieben: «Alles Gute, $name».',
-    ].join(' ');
+      'Format: Hochformat 4:5, randlos, Geburtstagskarte.',
+      insiders.isNotEmpty
+          ? 'Bildidee: eine kleine, augenzwinkernde Szene rund um «${insiders.first}»${age != null ? ', in der die Zahl $age versteckt als Teil der Szene auftaucht' : ''}.'
+          : 'Bildidee: ${age != null ? 'die Zahl $age als grosse, festliche Skulptur, um die herum gefeiert wird' : 'ein einzelnes, festliches Objekt als Mittelpunkt einer Feier'}.',
+      'Szene: Hauptmotiv gross im unteren Drittel, darüber ruhiger Raum für die Schrift. ${insiders.length > 1 ? 'Kleine Details im Hintergrund: ${insiders.skip(1).join(', ')}.' : 'Wenige, sorgfältig gesetzte Details.'}',
+      'Stil: ${style ?? 'Risographie-Druck in drei Farben mit leichtem Passerversatz und Papierkorn'}.',
+      'Farben und Licht: warmes Papierweiss, Koralle, tiefes Petrol, ein Akzent in Gold; weiches, gleichmässiges Licht.',
+      'Schrift: «Alles Gute, $name» oben mittig in einer kräftigen, freundlichen Grotesk, fehlerfrei geschrieben und gut lesbar; kein weiterer Text.',
+      'Vermeiden: reale Personen und Gesichter, Marken, Logos, Wasserzeichen, Rahmen, zusätzlicher Text, generische Ballons und Konfetti.',
+    ].join('\n');
   }
 
   Future<String> _call(String system, String user, int maxTokens) async {

@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geburtstage/data/database.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geburtstage/main.dart';
 import 'package:geburtstage/theme/app_theme.dart';
 import 'package:geburtstage/ui/ambient.dart';
@@ -122,6 +123,7 @@ Future<void> _shot(WidgetTester tester, String name, Widget body,
 void main() {
   setUpAll(() async {
     Ambient.sensorsEnabled = false;
+    SharedPreferences.setMockInitialValues({});
     const flex = 'assets/fonts/RobotoFlex.ttf';
     await _font('RobotoFlex', flex);
     await _font('Roboto', flex);

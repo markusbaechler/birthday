@@ -68,7 +68,9 @@ class GreetingService {
   /// Schedules (or re-schedules) the notification of [g].
   Future<void> schedule(Greeting g, Person p) async {
     final when = g.scheduledAt;
-    if (when == null || g.draft == null) return;
+    final hasText = (g.draft ?? '').trim().isNotEmpty;
+    if (when == null || (!hasText && g.imagePath == null)) return;
+    final body = hasText ? g.draft! : 'Die Karte ist bereit.';
     if (when.isBefore(DateTime.now())) return;
     final age = p.birthYear == null ? '' : ' (${g.year - p.birthYear!})';
     final name = (p.nickname?.trim().isNotEmpty ?? false) ? p.nickname!.trim() : p.firstName;
@@ -81,7 +83,7 @@ class GreetingService {
         priority: _channel.priority,
         category: _channel.category,
         color: _channel.color,
-        styleInformation: BigTextStyleInformation(g.draft!),
+        styleInformation: BigTextStyleInformation(body),
         actions: _channel.actions,
       ),
     );
@@ -90,7 +92,7 @@ class GreetingService {
       await _plugin.zonedSchedule(
         g.id,
         'Geburtstag von $name$age',
-        g.draft,
+        body,
         at,
         details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -101,7 +103,7 @@ class GreetingService {
       await _plugin.zonedSchedule(
         g.id,
         'Geburtstag von $name$age',
-        g.draft,
+        body,
         at,
         details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,

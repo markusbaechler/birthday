@@ -79,6 +79,9 @@ for name, info, label in [
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/{info}" />
         </receiver>
 """
+# One app instance: shares from other apps reach the running app.
+text = text.replace('android:launchMode="singleTop"', 'android:launchMode="singleTask"')
+
 # Share target: text and images from other apps (e.g. ChatGPT)
 if "android.intent.action.SEND" not in text:
     text = text.replace("</activity>", """    <intent-filter>

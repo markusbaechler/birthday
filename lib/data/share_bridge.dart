@@ -112,3 +112,35 @@ abstract final class CardImages {
     return i < 0 ? 'jpg' : path.substring(i + 1);
   }
 }
+
+/// Image AIs the card prompt can go to. The app first hands the prompt to
+/// the installed app, otherwise it opens the website.
+enum ImageAi {
+  chatgpt('ChatGPT', 'com.openai.chatgpt', 'https://chatgpt.com/?q='),
+  gemini('Gemini', 'com.google.android.apps.bard', 'https://gemini.google.com/app?q='),
+  grok('Grok', 'ai.x.grok', 'https://grok.com/?q=');
+
+  const ImageAi(this.label, this.package, this.web);
+  final String label;
+  final String package;
+  final String web;
+
+  static ImageAi byName(String? name) =>
+      ImageAi.values.firstWhere((a) => a.name == name, orElse: () => chatgpt);
+}
+
+/// Style presets for the card. [hint] goes into the prompt request.
+enum CardStyle {
+  auto('Automatisch', null),
+  illustration('Illustration', 'Editorial-Illustration mit klaren Flächen und feiner Körnung'),
+  photo('Foto', 'fotorealistisch, inszenierte Stillleben- oder Szenenfotografie, 50 mm, geringe Schärfentiefe'),
+  clay('3D', '3D-Render, Figuren und Objekte aus matter Knete, weiches Studiolicht'),
+  watercolor('Aquarell', 'Aquarell auf rauem Papier mit sichtbaren Pigmenträndern'),
+  retro('Retro-Poster', 'Siebdruck-Poster im Stil der 60er-Jahre, wenige Volltonfarben'),
+  minimal('Minimal', 'minimalistisch, ein einzelnes starkes Motiv, viel Weissraum'),
+  comic('Comic', 'Ligne-claire-Comic mit sauberen Konturen und flachen Farben');
+
+  const CardStyle(this.label, this.hint);
+  final String label;
+  final String? hint;
+}

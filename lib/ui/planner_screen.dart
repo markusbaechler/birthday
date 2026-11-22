@@ -185,7 +185,7 @@ class _PlanRow extends StatelessWidget {
           'Geplant ${g!.scheduledAt == null ? '' : '${g.scheduledAt!.hour.toString().padLeft(2, '0')}:${g.scheduledAt!.minute.toString().padLeft(2, '0')}'}',
           Nl.personGreen
         ),
-      _ when (g?.draft ?? '').isNotEmpty => ('Entwurf', Nl.personAmber),
+      _ when (g?.draft ?? '').isNotEmpty || g?.imagePath != null => ('Entwurf', Nl.personAmber),
       _ => ('Offen', Nl.inkSoft),
     };
     return PressScale(

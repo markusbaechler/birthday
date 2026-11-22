@@ -119,6 +119,8 @@ class _HomeShellState extends State<HomeShell> {
           cards: upcomingFor(people, DateTime.now()), shared: shared),
     );
     if (chosen == null || !mounted) return;
+    // One editor at a time: a share replaces whatever was open.
+    Navigator.of(context).popUntil((r) => r.isFirst);
     await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => GreetingEditor(person: chosen, incoming: shared)));
   }

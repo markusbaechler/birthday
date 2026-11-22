@@ -440,7 +440,8 @@ class _GreetingButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final g = greeting;
-    final hasDraft = g != null && (g.draft ?? '').isNotEmpty;
+    final hasDraft =
+        g != null && ((g.draft ?? '').isNotEmpty || g.imagePath != null);
     final (IconData icon, String text, Color tint) = switch (g?.status) {
       _ when !hasDraft => (
           Icons.auto_awesome_outlined,

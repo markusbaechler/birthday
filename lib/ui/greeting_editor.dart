@@ -5,6 +5,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/ai_service.dart';
@@ -54,6 +55,8 @@ class _GreetingEditorState extends State<GreetingEditor> {
   var _busy = false;
   var _busyPrompt = false;
   var _promptOpen = false;
+  var _ai = ImageAi.chatgpt;
+  var _style = CardStyle.auto;
   String? _error;
   var _time = const TimeOfDay(hour: 9, minute: 0);
 
@@ -61,6 +64,11 @@ class _GreetingEditorState extends State<GreetingEditor> {
   AppDatabase get db => AppScope.of(context);
   String? get _image => _greeting?.imagePath;
   String? get _prompt => _greeting?.imagePrompt;
+  bool get _hasContent => _text.text.trim().isNotEmpty || _image != null;
+
+  static bool _isLink(String t) =>
+      t.contains('http') &&
+      t.replaceAll(RegExp(r'https?://\S+'), '').trim().length < 60;
 
   @override
   void didChangeDependencies() {
@@ -73,7 +81,14 @@ class _GreetingEditorState extends State<GreetingEditor> {
 
   Future<void> _load() async {
     var g = await db.greetingFor(p.id, _next.date.year);
+    final prefs = await SharedPreferences.getInstance();
+    _ai = ImageAi.byName(prefs.getString('image_ai'));
     final inc = widget.incoming;
+    // A share with an image often carries only a link as text: ignore it.
+    final incText = inc?.text != null &&
+            !(inc!.imagePath != null && _isLink(inc.text!))
+        ? inc.text
+        : null;
     if (inc?.imagePath != null) {
       final path = await CardImages.store(p.id, _next.date.year,
           await File(inc!.imagePath!).readAsBytes(),
@@ -89,15 +104,16 @@ class _GreetingEditorState extends State<GreetingEditor> {
     setState(() {
       _greeting = g;
       _variants = GreetingVariant.listFromJson(g?.variants);
-      _text.text = inc?.text ?? g?.draft ?? '';
+      _text.text = incText ?? g?.draft ?? '';
       if (g?.scheduledAt != null) {
         _time = TimeOfDay(hour: g!.scheduledAt!.hour, minute: g.scheduledAt!.minute);
       }
     });
-    if (inc?.text != null) {
+    if (incText != null) {
       _selected = -1;
       await _saveDraft();
-    } else if (widget.autoGenerate && inc == null && _text.text.trim().isEmpty) {
+    } else if (widget.autoGenerate && _text.text.trim().isEmpty) {
+      // Also when only a card image arrived: the text comes with it.
       _generate();
     }
   }
@@ -212,17 +228,18 @@ class _GreetingEditorState extends State<GreetingEditor> {
 
   // ---- Card image
 
-  Future<void> _makePrompt() async {
+  Future<void> _makePrompt({String? wish}) async {
     setState(() {
       _busyPrompt = true;
       _error = null;
     });
     String prompt;
     try {
-      prompt = await AiService(db).imagePrompt(p, greeting: _text.text);
+      prompt = await AiService(db).imagePrompt(p,
+          greeting: _text.text, wish: wish, style: _style.hint, ai: _ai.label);
     } on AiException catch (e) {
       // Without the AI: a solid prompt from the profile alone.
-      prompt = AiService.fallbackImagePrompt(p);
+      prompt = AiService.fallbackImagePrompt(p, style: _style.hint);
       if (mounted) _snack('${e.message} Einfacher Prompt ohne KI erstellt.');
     }
     final g = await db.saveGreeting(
@@ -237,6 +254,28 @@ class _GreetingEditorState extends State<GreetingEditor> {
       _busyPrompt = false;
       _promptOpen = true;
     });
+  }
+
+  Future<void> _promptWish() async {
+    final wish = await _ask(
+      title: 'Was soll aufs Bild?',
+      hint: 'z. B. unsere Katze Minou, Winterstimmung, eher elegant',
+      action: 'Prompt schreiben',
+    );
+    if (wish != null) await _makePrompt(wish: wish);
+  }
+
+  Future<void> _setAi(ImageAi ai) async {
+    HapticFeedback.selectionClick();
+    setState(() => _ai = ai);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('image_ai', ai.name);
+  }
+
+  void _setStyle(CardStyle style) {
+    HapticFeedback.selectionClick();
+    setState(() => _style = style);
+    if (_prompt != null && !_busyPrompt) _makePrompt();
   }
 
   Future<void> _editPrompt() async {
@@ -264,21 +303,22 @@ class _GreetingEditorState extends State<GreetingEditor> {
     if (mounted) setState(() => _greeting = g);
   }
 
-  Future<void> _toChatGpt() async {
+  Future<void> _toAi() async {
     final prompt = _prompt;
     if (prompt == null) return;
     await Clipboard.setData(ClipboardData(text: prompt));
     HapticFeedback.selectionClick();
-    var ok = await ShareBridge.sendTextToApp('com.openai.chatgpt', prompt);
+    var ok = await ShareBridge.sendTextToApp(_ai.package, prompt);
     if (!ok) {
-      ok = await launchUrl(
-          Uri.parse('https://chatgpt.com/?q=${Uri.encodeComponent(prompt)}'),
-          mode: LaunchMode.externalApplication);
+      try {
+        ok = await launchUrl(Uri.parse('${_ai.web}${Uri.encodeComponent(prompt)}'),
+            mode: LaunchMode.externalApplication);
+      } catch (_) {}
     }
     if (mounted) {
       _snack(ok
           ? 'Prompt ist auch kopiert. Fertiges Bild: Teilen › Geburtstage.'
-          : 'Prompt kopiert. ChatGPT liess sich nicht öffnen.');
+          : 'Prompt kopiert. ${_ai.label} liess sich nicht öffnen.');
     }
   }
 
@@ -316,7 +356,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
       _next.date.day, _time.hour, _time.minute);
 
   Future<void> _plan() async {
-    if (_text.text.trim().isEmpty) return;
+    if (!_hasContent) return;
     final svc = GreetingService.instance;
     await svc.requestPermissions();
     final g = await db.saveGreeting(
@@ -564,21 +604,66 @@ class _GreetingEditorState extends State<GreetingEditor> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Text('Bild-KI', style: Nl.caption),
+                  const SizedBox(height: Nl.s2),
+                  Row(
+                    children: [
+                      for (final (i, ai) in ImageAi.values.indexed) ...[
+                        if (i > 0) const SizedBox(width: Nl.s2),
+                        Expanded(
+                          child: _Segment(
+                            label: ai.label,
+                            selected: ai == _ai,
+                            onTap: () => _setAi(ai),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: Nl.s4),
+                  Text('Stil', style: Nl.caption),
+                  const SizedBox(height: Nl.s2),
+                  SizedBox(
+                    height: 38,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: CardStyle.values.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: Nl.s2),
+                      itemBuilder: (context, i) {
+                        final st = CardStyle.values[i];
+                        return _Chip(
+                          label: st.label,
+                          strong: st == _style,
+                          onTap: _busyPrompt ? null : () => _setStyle(st),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: Nl.s5),
                   if (_busyPrompt)
-                    const _Writing(label: 'Schreibe den Bildprompt …')
+                    const _Writing(label: 'Entwickle die Bildidee …')
                   else if (_prompt == null) ...[
-                    Text('Karte mit ChatGPT gestalten',
-                        style: Nl.body.copyWith(color: Nl.ink)),
-                    const SizedBox(height: Nl.s1),
                     Text(
-                      'Die App schreibt einen Bildprompt aus dem Profil. Du öffnest ihn in ChatGPT und schickst das fertige Bild zurück.',
+                      'Die App entwickelt aus Profil, Insidern und Gruss eine Bildidee und schreibt den Prompt. Du öffnest ihn in ${_ai.label} und schickst das fertige Bild zurück.',
                       style: Nl.bodySmall,
                     ),
                     const SizedBox(height: Nl.s4),
-                    OutlinedButton.icon(
-                      onPressed: _makePrompt,
-                      icon: const Icon(Icons.auto_awesome_outlined, size: 18),
-                      label: const Text('Bildprompt schreiben'),
+                    Wrap(
+                      spacing: Nl.s2,
+                      runSpacing: Nl.s2,
+                      children: [
+                        _Chip(
+                          icon: Icons.auto_awesome_outlined,
+                          label: 'Bildprompt schreiben',
+                          strong: true,
+                          onTap: () => _makePrompt(),
+                        ),
+                        _Chip(
+                          icon: Icons.edit_outlined,
+                          label: 'Mit eigenem Wunsch',
+                          onTap: _promptWish,
+                        ),
+                      ],
                     ),
                   ] else ...[
                     GestureDetector(
@@ -589,14 +674,14 @@ class _GreetingEditorState extends State<GreetingEditor> {
                         alignment: Alignment.topCenter,
                         child: Text(
                           _prompt!,
-                          maxLines: _promptOpen ? null : (_image != null ? 2 : 4),
+                          maxLines: _promptOpen ? null : (_image != null ? 2 : 5),
                           overflow: _promptOpen ? null : TextOverflow.fade,
                           style: Nl.bodySmall.copyWith(color: Nl.inkSoft),
                         ),
                       ),
                     ),
                     const SizedBox(height: Nl.s2),
-                    Row(
+                    Wrap(
                       children: [
                         _ToolButton(
                             icon: _promptOpen ? Icons.unfold_less : Icons.unfold_more,
@@ -607,7 +692,13 @@ class _GreetingEditorState extends State<GreetingEditor> {
                             label: 'Ändern',
                             onTap: _editPrompt),
                         _ToolButton(
-                            icon: Icons.refresh, label: 'Neu', onTap: _makePrompt),
+                            icon: Icons.refresh,
+                            label: 'Neue Idee',
+                            onTap: () => _makePrompt()),
+                        _ToolButton(
+                            icon: Icons.chat_bubble_outline,
+                            label: 'Wunsch',
+                            onTap: _promptWish),
                       ],
                     ),
                     const SizedBox(height: Nl.s3),
@@ -616,9 +707,9 @@ class _GreetingEditorState extends State<GreetingEditor> {
                         foregroundColor: Nl.accent,
                         side: BorderSide(color: Nl.accent.withValues(alpha: 0.55)),
                       ),
-                      onPressed: _toChatGpt,
+                      onPressed: _toAi,
                       icon: const Icon(Icons.open_in_new, size: 18),
-                      label: const Text('In ChatGPT öffnen'),
+                      label: Text('In ${_ai.label} öffnen'),
                     ),
                   ],
                   const SizedBox(height: Nl.s2),
@@ -629,7 +720,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
                   ),
                   const SizedBox(height: Nl.s2),
                   Text(
-                    'Oder in ChatGPT direkt beim Bild: Teilen › Geburtstage.',
+                    'Oder in ${_ai.label} direkt beim Bild: Teilen › Geburtstage.',
                     textAlign: TextAlign.center,
                     style: Nl.caption,
                   ),
@@ -679,12 +770,12 @@ class _GreetingEditorState extends State<GreetingEditor> {
               OutlinedButton(onPressed: _unplan, child: const Text('Planung aufheben'))
             else
               FilledButton(
-                onPressed: _busy || !hasText ? null : _plan,
+                onPressed: _busy || !_hasContent ? null : _plan,
                 child: Text('Planen für ${_time.format(context)}'),
               ),
             const SizedBox(height: Nl.s2),
             TextButton(
-              onPressed: _busy || !hasText ? null : _sendNow,
+              onPressed: _busy || !_hasContent ? null : _sendNow,
               child: Text(
                   'Jetzt senden per ${Channels.label(p.channel)}${_image != null ? ' mit Karte' : ''}'),
             ),
@@ -693,6 +784,34 @@ class _GreetingEditorState extends State<GreetingEditor> {
       ),
     );
   }
+}
+
+/// One option of a segmented choice.
+class _Segment extends StatelessWidget {
+  const _Segment({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: kEase,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? Nl.accent.withValues(alpha: 0.14) : Colors.transparent,
+            borderRadius: BorderRadius.circular(Nl.rS),
+            border: Border.all(
+                color: selected ? Nl.accent.withValues(alpha: 0.7) : Nl.borderIcon),
+          ),
+          child: Text(label,
+              style: Nl.caption.copyWith(
+                  fontSize: 13.5, color: selected ? Nl.accent : Nl.inkSoft)),
+        ),
+      );
 }
 
 /// Small text-and-icon button inside a card.
