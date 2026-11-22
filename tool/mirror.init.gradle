@@ -1,4 +1,4 @@
-// Puts Google's mirror of Maven Central in front of every repository list,
+// Puts Google's mirror of Maven Central in front of the repository lists,
 // so builds do not depend on repo.maven.apache.org (HTTP 429 on CI runners).
 def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
 
@@ -6,13 +6,21 @@ beforeSettings { settings ->
     settings.pluginManagement.repositories {
         maven { url mirror }
     }
-}
-
-beforeProject { project ->
-    project.buildscript.repositories {
+    settings.dependencyResolutionManagement.repositories {
         maven { url mirror }
     }
-    project.repositories {
-        maven { url mirror }
+}
+
+// Project-level repositories only in the app build itself. Included builds
+// (Flutter's Gradle tooling) forbid project repositories and use the
+// settings-level mirror above.
+beforeProject { project ->
+    if (project.gradle.parent == null) {
+        project.buildscript.repositories {
+            maven { url mirror }
+        }
+        project.repositories {
+            maven { url mirror }
+        }
     }
 }
