@@ -60,7 +60,9 @@ class AiService {
   AiService(this.db);
   final AppDatabase db;
 
-  static const _model = 'claude-sonnet-5-5';
+  /// Tried in order; the next one only when a model is not available.
+  static const _models = ['claude-sonnet-5-5', 'claude-sonnet-4-5'];
+  static var _model = _models.first;
   static const _endpoint = 'https://api.anthropic.com/v1/messages';
 
   static const _system = '''
@@ -208,35 +210,13 @@ Regeln: Motive nur aus den Angaben (Insider, Notizen, Beziehung, Alter, Gruss). 
       throw const AiException(
           'Kein API-Schlüssel hinterlegt. Unter «Mehr» eintragen.');
     }
-    final http.Response res;
-    try {
-      res = await http
-          .post(
-            Uri.parse(_endpoint),
-            headers: {
-              'x-api-key': key,
-              'anthropic-version': '2023-06-01',
-              'content-type': 'application/json',
-            },
-            body: jsonEncode({
-              'model': _model,
-              'max_tokens': maxTokens,
-              'system': system,
-              'messages': [
-                {'role': 'user', 'content': user}
-              ],
-            }),
-          )
-          .timeout(const Duration(seconds: 60));
-    } catch (e) {
-      throw const AiException('Keine Verbindung. Bitte später nochmals.');
-    }
-    if (res.statusCode == 401) {
-      throw const AiException('Der API-Schlüssel ist ungültig.');
-    }
-    if (res.statusCode != 200) {
-      throw AiException('Die KI antwortet nicht (Fehler ${res.statusCode}).');
-    }
+    final res = await _post(key, {
+      'max_tokens': maxTokens,
+      'system': system,
+      'messages': [
+        {'role': 'user', 'content': user}
+      ],
+    });
     final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     return (body['content'] as List)
         .where((c) => c['type'] == 'text')
@@ -244,29 +224,77 @@ Regeln: Motive nur aus den Angaben (Insider, Notizen, Beziehung, Alter, Gruss). 
         .join();
   }
 
-  /// Quick check for the settings screen.
-  static Future<bool> testKey(String key) async {
+  /// Sends a request; on «model not found» tries the next model. Throws an
+  /// [AiException] with the reason in plain words.
+  static Future<http.Response> _post(String key, Map<String, Object?> body,
+      {Duration timeout = const Duration(seconds: 60)}) async {
+    for (final model in [_model, ..._models.where((m) => m != _model)]) {
+      final http.Response res;
+      try {
+        res = await http
+            .post(
+              Uri.parse(_endpoint),
+              headers: {
+                'x-api-key': key.trim(),
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+              },
+              body: jsonEncode({'model': model, ...body}),
+            )
+            .timeout(timeout);
+      } catch (e) {
+        throw AiException('Keine Verbindung zur KI ($e).');
+      }
+      if (res.statusCode == 200) {
+        _model = model;
+        return res;
+      }
+      final reason = _reason(res);
+      if (res.statusCode == 404 && reason.toLowerCase().contains('model')) {
+        continue;
+      }
+      throw AiException(_explain(res.statusCode, reason));
+    }
+    throw const AiException('Kein passendes KI-Modell verfügbar.');
+  }
+
+  static String _reason(http.Response res) {
     try {
-      final res = await http
-          .post(
-            Uri.parse(_endpoint),
-            headers: {
-              'x-api-key': key.trim(),
-              'anthropic-version': '2023-06-01',
-              'content-type': 'application/json',
-            },
-            body: jsonEncode({
-              'model': _model,
-              'max_tokens': 5,
-              'messages': [
-                {'role': 'user', 'content': 'Antworte mit OK.'}
-              ],
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-      return res.statusCode == 200;
+      final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      return '${(j['error'] as Map?)?['message'] ?? ''}';
     } catch (_) {
-      return false;
+      return '';
+    }
+  }
+
+  static String _explain(int status, String reason) {
+    final r = reason.toLowerCase();
+    if (status == 401) return 'Der Schlüssel wird nicht akzeptiert (401). Neu kopieren, ohne Leerzeichen.';
+    if (status == 403) return 'Der Schlüssel hat keine Berechtigung (403): $reason';
+    if (r.contains('credit') || r.contains('billing')) {
+      return 'Kein Guthaben in der Console. Unter Billing Guthaben laden, dann klappt es.';
+    }
+    if (status == 429) return 'Zu viele Anfragen oder Limit erreicht (429): $reason';
+    if (status == 529 || status >= 500) return 'Die KI ist gerade überlastet ($status). Gleich nochmals.';
+    return 'Fehler $status: ${reason.isEmpty ? 'unbekannt' : reason}';
+  }
+
+  /// Checks [key]. Null when it works, otherwise the reason.
+  /// [usable]: the key itself is valid (e.g. only credit is missing).
+  static Future<({String? error, bool usable})> testKey(String key) async {
+    try {
+      await _post(key.trim(), {
+        'max_tokens': 5,
+        'messages': [
+          {'role': 'user', 'content': 'Antworte mit OK.'}
+        ],
+      }, timeout: const Duration(seconds: 30));
+      return (error: null, usable: true);
+    } on AiException catch (e) {
+      final m = e.message;
+      final usable = !m.contains('(401)') && !m.contains('(403)') &&
+          !m.startsWith('Keine Verbindung');
+      return (error: m, usable: usable);
     }
   }
 }

@@ -172,14 +172,28 @@ class _ApiKeyRowState extends State<_ApiKeyRow> {
       if (mounted) setState(() => _hasKey = false);
       return;
     }
-    final ok = await AiService.testKey(key);
-    if (ok) await Secrets.setApiKey(key);
+    final result = await AiService.testKey(key);
+    // A valid key is kept even if e.g. credit is still missing.
+    if (result.usable) await Secrets.setApiKey(key);
     if (!mounted) return;
-    setState(() => _hasKey = ok || _hasKey == true);
-    messenger.showSnackBar(SnackBar(
-        content: Text(ok
-            ? 'Schlüssel funktioniert und ist gespeichert.'
-            : 'Der Schlüssel funktioniert nicht. Nichts gespeichert.')));
+    setState(() => _hasKey = result.usable || _hasKey == true);
+    if (result.error == null) {
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Schlüssel funktioniert und ist gespeichert.')));
+    } else {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(result.usable ? 'Gespeichert, aber noch nicht bereit' : 'Nicht gespeichert'),
+          content: SelectableText(result.error!),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK')),
+          ],
+        ),
+      );
+    }
   }
 
   @override
