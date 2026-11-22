@@ -65,10 +65,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final db = AppScope.of(context);
-    return StreamBuilder<List<Person>>(
+    return StreamBuilder<List<Greeting>>(
+      stream: db.watchGreetings(),
+      builder: (context, greetSnap) => StreamBuilder<List<Person>>(
       stream: db.watchPeople(),
       builder: (context, snapshot) {
         final people = snapshot.data ?? const <Person>[];
+        final greetings = {
+          for (final g in greetSnap.data ?? const <Greeting>[])
+            '${g.personId}-${g.year}': g
+        };
         final today = DateTime.now();
         final months = _months(people, today);
         var row = 0;
@@ -100,6 +106,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               milliseconds: 60 * (row < 10 ? row++ : 10)),
                           child: _DayRow(
                             u: m.items[i],
+                            greeting: greetings[
+                                '${m.items[i].person.id}-${m.items[i].next.date.year}'],
                             last: i == m.items.length - 1,
                           ),
                         ),
@@ -111,6 +119,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ],
         );
       },
+    ),
     );
   }
 }
@@ -200,8 +209,9 @@ class _MonthHeader extends StatelessWidget {
 }
 
 class _DayRow extends StatelessWidget {
-  const _DayRow({required this.u, required this.last});
+  const _DayRow({required this.u, required this.greeting, required this.last});
   final Upcoming u;
+  final Greeting? greeting;
   final bool last;
 
   @override
@@ -256,10 +266,19 @@ class _DayRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Text(
-                n.isToday ? 'heute' : inDays(n.daysUntil),
-                style: Nl.caption.copyWith(
-                    color: n.isToday ? Nl.accent : Nl.muted),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    n.isToday ? 'heute' : inDays(n.daysUntil),
+                    style: Nl.caption.copyWith(
+                        color: n.isToday ? Nl.accent : Nl.muted),
+                  ),
+                  if (greeting != null) ...[
+                    const SizedBox(height: Nl.s1),
+                    GreetingBadge(greeting: greeting),
+                  ],
+                ],
               ),
             ],
           ),

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -67,12 +69,15 @@ class _PlannerScreenState extends State<PlannerScreen> {
     await svc.requestPermissions();
     for (final (u, g) in drafts) {
       final d = u.next.date;
+      var at = DateTime(d.year, d.month, d.day, 9, 0);
+      final now = DateTime.now();
+      if (at.isBefore(now)) at = now.add(const Duration(minutes: 10));
       final saved = await db.saveGreeting(
         personId: u.person.id,
         year: g.year,
         channel: u.person.channel,
         status: const Value(GreetingStatus.scheduled),
-        scheduledAt: Value(DateTime(d.year, d.month, d.day, 9, 0)),
+        scheduledAt: Value(at),
       );
       await svc.schedule(saved, u.person);
     }
@@ -92,21 +97,34 @@ class _PlannerScreenState extends State<PlannerScreen> {
           final people = peopleSnap.data ?? const <Person>[];
           final greetings = greetSnap.data ?? const <Greeting>[];
           final byKey = {for (final g in greetings) '${g.personId}-${g.year}': g};
+          final byId = {for (final p in people) p.id: p};
           final upcoming = upcomingFor(people, DateTime.now())
               .where((u) => u.next.daysUntil <= _horizonDays)
               .toList();
           Greeting? gOf(Upcoming u) => byKey['${u.person.id}-${u.next.date.year}'];
-          final open = upcoming
-              .where((u) => (gOf(u)?.draft ?? '').isEmpty && u.next.daysUntil <= 30)
-              .toList();
-          final drafts = [
+          // Everything planned, however far ahead, by time.
+          final planned = [
+            for (final g in greetings)
+              if (g.status == GreetingStatus.scheduled && byId[g.personId] != null)
+                (byId[g.personId]!, g)
+          ]..sort((a, b) => (a.$2.scheduledAt ?? DateTime(9999))
+              .compareTo(b.$2.scheduledAt ?? DateTime(9999)));
+          final draftRows = [
             for (final u in upcoming)
               if (gOf(u) case final g?
-                  when g.status == GreetingStatus.draft && (g.draft ?? '').isNotEmpty)
+                  when g.status == GreetingStatus.draft && GreetingBadge.hasContent(g))
                 (u, g)
           ];
-          final scheduled =
-              upcoming.where((u) => gOf(u)?.status == GreetingStatus.scheduled).length;
+          final openRows = upcoming
+              .where((u) => !GreetingBadge.hasContent(gOf(u)))
+              .toList();
+          final open = openRows.where((u) => u.next.daysUntil <= 30).toList();
+
+          var i = 0;
+          Widget row(Upcoming u, Greeting? g, bool last) => FadeSlideIn(
+                delay: Duration(milliseconds: 40 * (i < 10 ? i++ : 10)),
+                child: _PlanRow(u: u, greeting: g, last: last),
+              );
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s6, Nl.s5, 120),
@@ -114,14 +132,12 @@ class _PlannerScreenState extends State<PlannerScreen> {
               const SectionLabel('Grüsse'),
               const SizedBox(height: Nl.s4),
               Text(
-                upcoming.isEmpty
-                    ? 'In den nächsten $_horizonDays Tagen hat niemand Geburtstag.'
-                    : '$scheduled geplant · ${drafts.length} Entwürfe · ${open.length} offen',
+                '${planned.length} geplant · ${draftRows.length} Entwürfe · ${openRows.length} offen',
                 style: Nl.title,
               ),
               const SizedBox(height: Nl.s2),
               const Text(
-                'Die KI schreibt aus Profil, Insidern und Notizen. Zur geplanten Zeit kommt der fertige Text, ein Tipp öffnet den Chat.',
+                'Zur geplanten Zeit kommt eine Benachrichtigung mit dem fertigen Gruss. Ein Tipp öffnet den Chat, du tippst nur noch auf Senden.',
                 style: Nl.bodySmall,
               ),
               const SizedBox(height: Nl.s5),
@@ -142,27 +158,137 @@ class _PlannerScreenState extends State<PlannerScreen> {
                         ? '1 Entwurf schreiben lassen'
                         : '${open.length} Entwürfe schreiben lassen'),
                   ),
-                if (drafts.isNotEmpty) ...[
+                if (draftRows.isNotEmpty) ...[
                   const SizedBox(height: Nl.s2),
                   OutlinedButton(
-                    onPressed: () => _planAll(drafts),
-                    child: Text('${drafts.length} Entwürfe planen (09:00)'),
+                    onPressed: () => _planAll(draftRows),
+                    child: Text('${draftRows.length} Entwürfe planen (09:00)'),
                   ),
                 ],
               ],
-              const SizedBox(height: Nl.s5),
-              for (var i = 0; i < upcoming.length; i++)
-                FadeSlideIn(
-                  delay: Duration(milliseconds: 50 * (i < 10 ? i : 10)),
-                  child: _PlanRow(
-                    u: upcoming[i],
-                    greeting: gOf(upcoming[i]),
-                    last: i == upcoming.length - 1,
+
+              // Planned
+              const SizedBox(height: Nl.s6),
+              const SectionLabel('Geplant'),
+              const SizedBox(height: Nl.s3),
+              if (planned.isEmpty)
+                const Text('Noch nichts geplant.', style: Nl.caption)
+              else
+                for (final (p, g) in planned)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: Nl.s3),
+                    child: _PlannedCard(person: p, greeting: g),
                   ),
-                ),
+
+              if (draftRows.isNotEmpty) ...[
+                const SizedBox(height: Nl.s5),
+                const SectionLabel('Entwürfe'),
+                const SizedBox(height: Nl.s1),
+                for (var k = 0; k < draftRows.length; k++)
+                  row(draftRows[k].$1, draftRows[k].$2, k == draftRows.length - 1),
+              ],
+              if (openRows.isNotEmpty) ...[
+                const SizedBox(height: Nl.s5),
+                const SectionLabel('Offen · nächste $_horizonDays Tage'),
+                const SizedBox(height: Nl.s1),
+                for (var k = 0; k < openRows.length; k++)
+                  row(openRows[k], gOf(openRows[k]), k == openRows.length - 1),
+              ],
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// A planned greeting at a glance: when, for whom, what goes out.
+class _PlannedCard extends StatelessWidget {
+  const _PlannedCard({required this.person, required this.greeting});
+  final Person person;
+  final Greeting greeting;
+
+  @override
+  Widget build(BuildContext context) {
+    final g = greeting;
+    final at = g.scheduledAt;
+    final past = at != null && at.isBefore(DateTime.now());
+    final image = g.imagePath != null && File(g.imagePath!).existsSync()
+        ? g.imagePath
+        : null;
+    return PressScale(
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => GreetingEditor(person: person)));
+        },
+        child: Container(
+          padding: const EdgeInsets.all(Nl.s4),
+          decoration: BoxDecoration(
+            color: Nl.surface,
+            borderRadius: BorderRadius.circular(Nl.rL),
+            border: Border.all(color: Nl.personGreen.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 64,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(at == null ? '–' : '${at.day}.${at.month}.',
+                        style: Nl.display(24, weight: 300, color: Nl.ink, height: 1.1)),
+                    const SizedBox(height: 2),
+                    Text(
+                      at == null
+                          ? ''
+                          : '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}',
+                      style: Nl.caption.copyWith(
+                          color: past ? Nl.dangerInk : Nl.personGreen),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(fullName(person),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Nl.body.copyWith(color: Nl.ink)),
+                    Text(
+                      [
+                        Channels.label(person.channel),
+                        if (image != null) 'mit Karte',
+                        if (past) 'Zeit verpasst',
+                      ].join(' · '),
+                      style: Nl.caption.copyWith(
+                          color: past ? Nl.dangerInk : Nl.muted),
+                    ),
+                    if ((g.draft ?? '').isNotEmpty) ...[
+                      const SizedBox(height: Nl.s2),
+                      Text(g.draft!,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: Nl.bodySmall.copyWith(color: Nl.inkSoft)),
+                    ],
+                  ],
+                ),
+              ),
+              if (image != null) ...[
+                const SizedBox(width: Nl.s3),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(Nl.rS),
+                  child: Image.file(File(image),
+                      width: 56, height: 70, fit: BoxFit.cover, cacheWidth: 168),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -179,15 +305,6 @@ class _PlanRow extends StatelessWidget {
     final p = u.person;
     final n = u.next;
     final g = greeting;
-    final (label, color) = switch (g?.status) {
-      GreetingStatus.sent => ('Gesendet', Nl.muted),
-      GreetingStatus.scheduled => (
-          'Geplant ${g!.scheduledAt == null ? '' : '${g.scheduledAt!.hour.toString().padLeft(2, '0')}:${g.scheduledAt!.minute.toString().padLeft(2, '0')}'}',
-          Nl.personGreen
-        ),
-      _ when (g?.draft ?? '').isNotEmpty || g?.imagePath != null => ('Entwurf', Nl.personAmber),
-      _ => ('Offen', Nl.inkSoft),
-    };
     return PressScale(
       child: InkWell(
         onTap: () {
@@ -228,14 +345,10 @@ class _PlanRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: Nl.s3),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: Nl.s3, vertical: Nl.s1),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(Nl.rS),
-                  border: Border.all(color: color.withValues(alpha: 0.6)),
-                ),
-                child: Text(label, style: Nl.caption.copyWith(color: color)),
-              ),
+              if (GreetingBadge.hasContent(g) || g?.status == GreetingStatus.sent)
+                GreetingBadge(greeting: g)
+              else
+                Text('Offen', style: Nl.caption.copyWith(color: Nl.inkSoft)),
             ],
           ),
         ),

@@ -24,9 +24,15 @@ class _PeopleScreenState extends State<PeopleScreen> {
   @override
   Widget build(BuildContext context) {
     final db = AppScope.of(context);
-    return StreamBuilder<List<Person>>(
+    return StreamBuilder<List<Greeting>>(
+      stream: db.watchGreetings(),
+      builder: (context, greetSnap) => StreamBuilder<List<Person>>(
       stream: db.watchPeople(),
       builder: (context, snapshot) {
+        final greetings = {
+          for (final g in greetSnap.data ?? const <Greeting>[])
+            '${g.personId}-${g.year}': g
+        };
         final all = snapshot.data ?? const <Person>[];
         final q = normalizeName(_query);
         final shown = q.isEmpty
@@ -90,8 +96,18 @@ class _PeopleScreenState extends State<PeopleScreen> {
                         ),
                       ),
                       if (upcoming[p.id] != null)
-                        Text(inDays(upcoming[p.id]!.daysUntil),
-                            style: Nl.caption),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(inDays(upcoming[p.id]!.daysUntil),
+                                style: Nl.caption),
+                            if (greetings['${p.id}-${upcoming[p.id]!.date.year}']
+                                case final g?) ...[
+                              const SizedBox(height: Nl.s1),
+                              GreetingBadge(greeting: g),
+                            ],
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -99,6 +115,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
           ],
         );
       },
+    ),
     );
   }
 }

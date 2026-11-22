@@ -217,6 +217,8 @@ class _TodayViewState extends State<TodayView>
                 itemExtent: _stripItem,
                 itemBuilder: (context, i) => _StripFace(
                   u: cards[i],
+                  greeting: widget.greetings[
+                      '${cards[i].person.id}-${cards[i].next.date.year}'],
                   focus: (1 - (_page - i).abs()).clamp(0.0, 1.0),
                   onTap: () => _goTo(i),
                 ),
@@ -233,8 +235,10 @@ class _TodayViewState extends State<TodayView>
 /// A face in the strip below the cards. [focus] 1 = current card. Only the
 /// current face carries colour; the others stay quiet.
 class _StripFace extends StatelessWidget {
-  const _StripFace({required this.u, required this.focus, required this.onTap});
+  const _StripFace(
+      {required this.u, required this.greeting, required this.focus, required this.onTap});
   final Upcoming u;
+  final Greeting? greeting;
   final double focus;
   final VoidCallback onTap;
 
@@ -251,14 +255,36 @@ class _StripFace extends StatelessWidget {
         children: [
           Transform.scale(
             scale: 0.84 + 0.16 * focus,
-            child: Opacity(
-              opacity: 0.6 + 0.4 * focus,
-              child: PersonAvatar(
-                person: u.person,
-                size: 42,
-                color: Color.lerp(quiet, own, focus)!,
-                ink: Color.lerp(Nl.muted, own, focus),
-              ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Opacity(
+                  opacity: 0.6 + 0.4 * focus,
+                  child: PersonAvatar(
+                    person: u.person,
+                    size: 42,
+                    color: Color.lerp(quiet, own, focus)!,
+                    ink: Color.lerp(Nl.muted, own, focus),
+                  ),
+                ),
+                // Planned greeting: a small green clock on the face.
+                if (greeting?.status == GreetingStatus.scheduled)
+                  Positioned(
+                    right: -3,
+                    bottom: -3,
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: Nl.bg,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Nl.personGreen, width: 1.2),
+                      ),
+                      child: const Icon(Icons.schedule,
+                          size: 11, color: Nl.personGreen),
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: Nl.s1),

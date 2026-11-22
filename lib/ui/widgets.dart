@@ -155,3 +155,58 @@ class RoundIconButton extends StatelessWidget {
         ),
       );
 }
+
+/// Small status pill for a greeting: planned (green, with time), draft
+/// (amber), sent (muted). Nothing when there is no greeting yet.
+class GreetingBadge extends StatelessWidget {
+  const GreetingBadge({super.key, required this.greeting, this.compact = false});
+  final Greeting? greeting;
+
+  /// Icon only.
+  final bool compact;
+
+  static bool hasContent(Greeting? g) =>
+      g != null && ((g.draft ?? '').trim().isNotEmpty || g.imagePath != null);
+
+  @override
+  Widget build(BuildContext context) {
+    final g = greeting;
+    if (g == null) return const SizedBox.shrink();
+    final (IconData icon, String label, Color color)? look = switch (g.status) {
+      GreetingStatus.scheduled => (
+          Icons.schedule,
+          g.scheduledAt == null
+              ? 'Geplant'
+              : '${g.scheduledAt!.hour.toString().padLeft(2, '0')}:${g.scheduledAt!.minute.toString().padLeft(2, '0')}',
+          Nl.personGreen
+        ),
+      GreetingStatus.sent => (Icons.check, 'Gesendet', Nl.muted),
+      _ when hasContent(g) => (Icons.edit_note, 'Entwurf', Nl.personAmber),
+      _ => null,
+    };
+    if (look == null) return const SizedBox.shrink();
+    final (icon, label, color) = look;
+    return Tooltip(
+      message: g.status == GreetingStatus.scheduled ? 'Gruss geplant' : label,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+            horizontal: compact ? 5 : Nl.s2, vertical: compact ? 5 : 3),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(Nl.rS),
+          border: Border.all(color: color.withValues(alpha: 0.5)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color),
+            if (!compact) ...[
+              const SizedBox(width: 4),
+              Text(label, style: Nl.caption.copyWith(color: color, fontSize: 12)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -16,7 +16,10 @@ import 'package:geburtstage/main.dart';
 import 'package:geburtstage/theme/app_theme.dart';
 import 'package:geburtstage/ui/ambient.dart';
 import 'package:geburtstage/ui/format.dart';
+import 'package:geburtstage/ui/calendar_screen.dart';
 import 'package:geburtstage/ui/greeting_editor.dart';
+import 'package:geburtstage/ui/people_screen.dart';
+import 'package:geburtstage/ui/planner_screen.dart';
 import 'package:geburtstage/ui/today_screen.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -257,4 +260,61 @@ void main() {
         nav: -1, db: db, height: 4400);
     await db.close();
   });
+
+  Future<AppDatabase> seedMany() async {
+    final db = AppDatabase(NativeDatabase.memory());
+    final ids = <String, int>{};
+    for (final (f, l, d, m, y) in [
+      ('Silvia', 'Meier', 28, 11, 1982),
+      ('Markus', 'Bächler', 3, 12, 1979),
+      ('Mia', 'Huber', 9, 12, 2015),
+      ('Peter', 'Brunner', 17, 12, 1956),
+      ('Claudia', '(Gotte)', 2, 1, null),
+      ('Lena', 'Keller', 22, 11, 1996),
+    ]) {
+      ids[f] = await db.addPerson(PeopleCompanion.insert(
+        firstName: f,
+        lastName: Value(l),
+        birthDay: d,
+        birthMonth: m,
+        birthYear: Value(y),
+      ));
+    }
+    await db.saveGreeting(
+      personId: ids['Silvia']!,
+      year: 2026,
+      channel: Channels.whatsapp,
+      draft: const Value('Silvia, 44 und immer noch die Einzige, die zu spät zur eigenen Velotour kommt. Hab einen wunderbaren Tag!'),
+      status: const Value(GreetingStatus.scheduled),
+      scheduledAt: Value(DateTime(2026, 11, 28, 9)),
+    );
+    await db.saveGreeting(
+      personId: ids['Peter']!,
+      year: 2026,
+      channel: Channels.whatsapp,
+      draft: const Value('Lieber Peter, 70 Jahre – und noch immer der Erste auf dem Gipfel.'),
+      status: const Value(GreetingStatus.scheduled),
+      scheduledAt: Value(DateTime(2026, 12, 17, 8, 30)),
+    );
+    await db.saveGreeting(
+      personId: ids['Markus']!,
+      year: 2026,
+      channel: Channels.whatsapp,
+      draft: const Value('Markus, alles Gute!'),
+    );
+    return db;
+  }
+
+  for (final (name, screen) in [
+    ('06_gruesse', const PlannerScreen()),
+    ('07_kalender', const CalendarScreen()),
+    ('08_personen', const PeopleScreen()),
+  ]) {
+    testWidgets('liste: $name', timeout: const Timeout(Duration(seconds: 90)), (tester) async {
+      final db = await seedMany();
+      await _shot(tester, name, screen,
+          nav: name.startsWith('06') ? 2 : name.startsWith('07') ? 1 : 3, db: db);
+      await db.close();
+    });
+  }
 }

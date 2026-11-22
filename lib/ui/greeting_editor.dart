@@ -107,6 +107,10 @@ class _GreetingEditorState extends State<GreetingEditor> {
       _text.text = incText ?? g?.draft ?? '';
       if (g?.scheduledAt != null) {
         _time = TimeOfDay(hour: g!.scheduledAt!.hour, minute: g.scheduledAt!.minute);
+      } else if (_when.isBefore(DateTime.now())) {
+        // Birthday today and 09:00 is gone: suggest the next quarter hour.
+        final soon = DateTime.now().add(const Duration(minutes: 20));
+        _time = TimeOfDay(hour: soon.hour, minute: soon.minute - soon.minute % 15);
       }
     });
     if (incText != null) {
@@ -357,6 +361,10 @@ class _GreetingEditorState extends State<GreetingEditor> {
 
   Future<void> _plan() async {
     if (!_hasContent) return;
+    if (_when.isBefore(DateTime.now())) {
+      _snack('Diese Zeit ist schon vorbei. Wähle eine spätere oder sende jetzt.');
+      return;
+    }
     final svc = GreetingService.instance;
     await svc.requestPermissions();
     final g = await db.saveGreeting(

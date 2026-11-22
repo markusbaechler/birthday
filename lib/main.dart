@@ -174,7 +174,7 @@ class GlassNavBar extends StatelessWidget {
               },
               destinations: const [
                 NavigationDestination(
-                    icon: Icon(Icons.cake_outlined), label: 'Heute'),
+                    icon: Icon(Icons.cake_outlined), label: 'Demnächst'),
                 NavigationDestination(
                     icon: Icon(Icons.calendar_month_outlined), label: 'Kalender'),
                 NavigationDestination(
