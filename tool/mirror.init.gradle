@@ -1,0 +1,18 @@
+// Puts Google's mirror of Maven Central in front of every repository list,
+// so builds do not depend on repo.maven.apache.org (HTTP 429 on CI runners).
+def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+
+beforeSettings { settings ->
+    settings.pluginManagement.repositories {
+        maven { url mirror }
+    }
+}
+
+beforeProject { project ->
+    project.buildscript.repositories {
+        maven { url mirror }
+    }
+    project.repositories {
+        maven { url mirror }
+    }
+}
