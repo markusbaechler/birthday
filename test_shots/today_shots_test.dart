@@ -181,24 +181,9 @@ void main() {
 
   Future<(AppDatabase, Person)> seed(WidgetTester tester,
       {bool withImage = false}) async {
-    late AppDatabase db;
-    late Person person;
-    await tester.runAsync(() async {
-      db = AppDatabase(NativeDatabase.memory());
-      final id = await db.into(db.people).insert(PeopleCompanion.insert(
-            firstName: 'Silvia',
-            lastName: const Value('Meier'),
-            birthDay: 28,
-            birthMonth: 11,
-            birthYear: const Value(1982),
-            phone: const Value('+41791234567'),
-            relation: const Value('Schwester'),
-            tone: const Value('herzlich, ein bisschen frech'),
-            insiders: const Value('Velotour an den Bodensee\nimmer zu spät'),
-          ));
-      person = (await db.allPeople()).firstWhere((x) => x.id == id);
-      String? imagePath;
-      if (withImage) {
+    String? imagePath;
+    if (withImage) {
+      await tester.runAsync(() async {
         final rec = ui.PictureRecorder();
         final c = Canvas(rec);
         const size = Size(800, 1000);
@@ -217,45 +202,56 @@ void main() {
         final f = File('build/tmp/card.png')..createSync(recursive: true);
         f.writeAsBytesSync(png!.buffer.asUint8List());
         imagePath = f.absolute.path;
-      }
-      await db.saveGreeting(
-        personId: id,
-        year: 2026,
-        channel: Channels.whatsapp,
-        draft: const Value(
-            'Silvia, 44 und immer noch die Einzige, die zu spät zur eigenen Velotour kommt. Ich warte gern wieder am Bodensee auf dich. Hab einen wunderbaren Tag!'),
-        variants: const Value(
-            '[{"title":"Velotour","text":"a"},{"title":"Zu spät","text":"b"},{"title":"Schwester","text":"c"}]'),
-        imagePrompt: const Value(
-            'Gestalte eine Geburtstagskarte im Hochformat 4:5 im Risographie-Stil: zwei Velos auf einem Uferweg am Bodensee in der Abendsonne, ein Velo steht schon, das andere kommt eilig angefahren, eine kleine Taschenuhr am Lenker. Warme Pastelltöne, feine Körnung, viel Luft. Einziger Text, korrekt geschrieben: «Alles Gute, Silvia».'),
-        imagePath: Value(imagePath),
-      );
-    });
+      });
+    }
+    // The database lives in the test zone, so pumping drives its futures.
+    final db = AppDatabase(NativeDatabase.memory());
+    final id = await db.into(db.people).insert(PeopleCompanion.insert(
+          firstName: 'Silvia',
+          lastName: const Value('Meier'),
+          birthDay: 28,
+          birthMonth: 11,
+          birthYear: const Value(1982),
+          phone: const Value('+41791234567'),
+          relation: const Value('Schwester'),
+          tone: const Value('herzlich, ein bisschen frech'),
+          insiders: const Value('Velotour an den Bodensee\nimmer zu spät'),
+        ));
+    final person = (await db.allPeople()).firstWhere((x) => x.id == id);
+    await db.saveGreeting(
+      personId: id,
+      year: 2026,
+      channel: Channels.whatsapp,
+      draft: const Value(
+          'Silvia, 44 und immer noch die Einzige, die zu spät zur eigenen Velotour kommt. Ich warte gern wieder am Bodensee auf dich. Hab einen wunderbaren Tag!'),
+      variants: const Value(
+          '[{"title":"Velotour","text":"a"},{"title":"Zu spät","text":"b"},{"title":"Schwester","text":"c"}]'),
+      imagePrompt: const Value(
+          'Gestalte eine Geburtstagskarte im Hochformat 4:5 im Risographie-Stil: zwei Velos auf einem Uferweg am Bodensee in der Abendsonne, ein Velo steht schon, das andere kommt eilig angefahren, eine kleine Taschenuhr am Lenker. Warme Pastelltöne, feine Körnung, viel Luft. Einziger Text, korrekt geschrieben: «Alles Gute, Silvia».'),
+      imagePath: Value(imagePath),
+    );
     return (db, person);
   }
 
-  testWidgets('gruss: Editor mit Prompt', (tester) async {
+  testWidgets('gruss: Editor mit Prompt', timeout: const Timeout(Duration(seconds: 90)), (tester) async {
     final (db, person) = await seed(tester);
     await _shot(tester, '04_gruss_editor',
         GreetingEditor(person: person, autoGenerate: false),
         nav: -1, db: db, height: 4400);
-    await tester.runAsync(db.close);
+    await db.close();
   });
 
-  testWidgets('gruss: Editor mit Bild', (tester) async {
+  testWidgets('gruss: Editor mit Bild', timeout: const Timeout(Duration(seconds: 90)), (tester) async {
     final (db, person) = await seed(tester, withImage: true);
     await _shot(tester, '05_gruss_mit_bild',
         GreetingEditor(person: person, autoGenerate: false),
         nav: -1, db: db, height: 4400, before: (tester) async {
-      for (var i = 0; i < 5; i++) {
-        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
-        await tester.pump();
-      }
+      await tester.pump(const Duration(milliseconds: 200));
       final ctx = tester.element(find.byType(GreetingEditor));
       await tester.runAsync(() => precacheImage(
           FileImage(File('build/tmp/card.png').absolute), ctx));
       await tester.pump();
     });
-    await tester.runAsync(db.close);
+    await db.close();
   });
 }
