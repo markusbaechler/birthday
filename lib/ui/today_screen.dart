@@ -455,6 +455,8 @@ class _GreetingButton extends StatelessWidget {
         ),
       _ => (Icons.edit_note, 'Entwurf bereit', Nl.personAmber),
     };
+    final card = g?.imagePath != null && g?.status != GreetingStatus.sent;
+    final label = card ? '$text · mit Karte' : text;
     final filled = today && !hasDraft;
     return PressScale(
       child: GestureDetector(
@@ -479,7 +481,12 @@ class _GreetingButton extends StatelessWidget {
                 children: [
                   Icon(icon, size: 18, color: tint),
                   const SizedBox(width: Nl.s2),
-                  Text(text, style: Nl.button.copyWith(color: tint)),
+                  Flexible(
+                    child: Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Nl.button.copyWith(color: tint)),
+                  ),
                 ],
               ),
             ),

@@ -589,7 +589,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
                         alignment: Alignment.topCenter,
                         child: Text(
                           _prompt!,
-                          maxLines: _promptOpen ? null : 4,
+                          maxLines: _promptOpen ? null : (_image != null ? 2 : 4),
                           overflow: _promptOpen ? null : TextOverflow.fade,
                           style: Nl.bodySmall.copyWith(color: Nl.inkSoft),
                         ),
@@ -611,7 +611,11 @@ class _GreetingEditorState extends State<GreetingEditor> {
                       ],
                     ),
                     const SizedBox(height: Nl.s3),
-                    FilledButton.icon(
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Nl.accent,
+                        side: BorderSide(color: Nl.accent.withValues(alpha: 0.55)),
+                      ),
                       onPressed: _toChatGpt,
                       icon: const Icon(Icons.open_in_new, size: 18),
                       label: const Text('In ChatGPT öffnen'),
