@@ -77,15 +77,14 @@ class MainActivity : FlutterActivity() {
     private fun saveToDownloads(path: String, name: String, keep: Int): Boolean {
         if (Build.VERSION.SDK_INT < 29) return false
         return try {
-            val media = android.provider.MediaStore.MediaColumns
             val collection = android.provider.MediaStore.Downloads.getContentUri(
                 android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
             // Our earlier backups (only files this app wrote are visible).
             val mine = mutableListOf<Pair<Long, String>>()
             contentResolver.query(
-                collection, arrayOf(media._ID, media.DISPLAY_NAME),
-                "${media.DISPLAY_NAME} LIKE ?", arrayOf("geburtstage-sicherung-%"),
-                "${media.DISPLAY_NAME} DESC"
+                collection, arrayOf(android.provider.MediaStore.MediaColumns._ID, android.provider.MediaStore.MediaColumns.DISPLAY_NAME),
+                "${android.provider.MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?", arrayOf("geburtstage-sicherung-%"),
+                "${android.provider.MediaStore.MediaColumns.DISPLAY_NAME} DESC"
             )?.use { c ->
                 while (c.moveToNext()) mine.add(c.getLong(0) to c.getString(1))
             }
@@ -94,17 +93,17 @@ class MainActivity : FlutterActivity() {
                 contentResolver.delete(android.content.ContentUris.withAppendedId(collection, id), null, null)
             }
             val values = android.content.ContentValues().apply {
-                put(media.DISPLAY_NAME, name)
-                put(media.MIME_TYPE, "application/json")
-                put(media.RELATIVE_PATH, "Download/Geburtstage")
-                put(media.IS_PENDING, 1)
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "application/json")
+                put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, "Download/Geburtstage")
+                put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
             }
             val uri = contentResolver.insert(collection, values) ?: return false
             contentResolver.openOutputStream(uri)?.use { out ->
                 File(path).inputStream().use { it.copyTo(out) }
             } ?: return false
             values.clear()
-            values.put(media.IS_PENDING, 0)
+            values.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
             contentResolver.update(uri, values, null, null)
             val others = mine.filter { !it.second.startsWith(base) }
             for ((id, _) in others.drop(maxOf(0, keep - 1))) {
