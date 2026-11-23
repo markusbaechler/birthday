@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../domain/birthday.dart';
 import 'database.dart';
+import 'style_profile.dart';
 
 /// The Anthropic API key, encrypted on the device (Android Keystore).
 abstract final class Secrets {
@@ -75,7 +76,8 @@ Regeln:
 - Ton und Sprache genau wie angegeben. «Mundart» heisst Schweizerdeutsch in natürlicher Schreibweise.
 - Deutsch immer mit ss statt ß.
 - Länge passend zum Kanal: WhatsApp und SMS 1 bis 3 Sätze, E-Mail höchstens 5 Sätze.
-- Kein Hashtag. Höchstens ein Emoji, und nur wenn der Ton locker oder frech ist.
+- Kein Hashtag. Emojis so, wie der Absender sie in seinen Beispielen setzt; ohne Beispiele höchstens eines, und nur wenn der Ton locker oder frech ist.
+- Gibt es Angaben dazu, wie der Absender schreibt, dann klingen alle Varianten nach ihm: Anrede, Satzlänge, Wortwahl, Mundart-Anteil, Satzzeichen und Schlussformel wie in seinen Beispielen. Inhalte aus den Beispielen nicht übernehmen.
 - Wiederhole keine Formulierung aus den Grüssen früherer Jahre.
 Antworte ausschliesslich mit JSON: {"variants":[{"title":"2-3 Wörter zur Idee","text":"…"},{…},{…}]} mit genau 3 Varianten.''';
 
@@ -133,6 +135,7 @@ Regeln: Motive nur aus den Angaben (Insider, Notizen, Beziehung, Alter, Gruss). 
     String? baseText,
   }) async {
     final facts = StringBuffer(await _facts(p));
+    facts.write((await StyleProfile.load(db)).toPrompt());
     final hasBase = baseText != null && baseText.trim().isNotEmpty;
     if (instruction != null && hasBase) {
       facts

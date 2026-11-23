@@ -4,6 +4,7 @@ import '../data/ai_service.dart';
 import '../data/backup_service.dart';
 import '../data/greeting_service.dart';
 import '../data/share_bridge.dart';
+import '../data/style_profile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart';
 import '../theme/tokens.dart';
@@ -103,6 +104,7 @@ class SettingsScreen extends StatelessWidget {
         const SectionLabel('Glückwunsch-KI'),
         const SizedBox(height: Nl.s2),
         const _ApiKeyRow(),
+        const _StyleRow(),
         const SizedBox(height: Nl.s6),
         const SectionLabel('Erinnerungen'),
         const SizedBox(height: Nl.s2),
@@ -553,6 +555,178 @@ class _AutoBackupRowState extends State<_AutoBackupRow> {
             child: Text(_busy ? '…' : 'Jetzt'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+/// «Mein Stil»: what the AI knows about how the sender writes.
+class _StyleRow extends StatefulWidget {
+  const _StyleRow();
+
+  @override
+  State<_StyleRow> createState() => _StyleRowState();
+}
+
+class _StyleRowState extends State<_StyleRow> {
+  StyleProfile? _profile;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final p = await StyleProfile.load(AppScope.of(context));
+    if (mounted) setState(() => _profile = p);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _profile;
+    final own = p != null &&
+        (p.note.trim().isNotEmpty || p.ownExamples.trim().isNotEmpty);
+    final n = p?.learned.length ?? 0;
+    final sub = [
+      if (own) 'Eigene Angaben hinterlegt',
+      n == 0
+          ? 'Lernt, sobald du Grüsse anpasst und sendest'
+          : 'Lernt aus $n ${n == 1 ? 'eigenen Gruss' : 'eigenen Grüssen'}',
+    ].join(' · ');
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: Nl.s3),
+      decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Nl.divider))),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Mein Stil', style: Nl.body.copyWith(color: Nl.ink)),
+                Text(sub, style: Nl.caption),
+              ],
+            ),
+          ),
+          const SizedBox(width: Nl.s3),
+          OutlinedButton(
+            onPressed: p == null
+                ? null
+                : () async {
+                    await Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => StyleScreen(profile: p)));
+                    await _load();
+                  },
+            style: OutlinedButton.styleFrom(
+                minimumSize: const Size(44, 44),
+                padding: const EdgeInsets.symmetric(horizontal: Nl.s4)),
+            child: const Text('Anpassen'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Edit the own style note and examples; see what the app has learned.
+class StyleScreen extends StatefulWidget {
+  const StyleScreen({super.key, required this.profile});
+  final StyleProfile profile;
+
+  @override
+  State<StyleScreen> createState() => _StyleScreenState();
+}
+
+class _StyleScreenState extends State<StyleScreen> {
+  late final _note = TextEditingController(text: widget.profile.note);
+  late final _examples = TextEditingController(text: widget.profile.ownExamples);
+
+  @override
+  void dispose() {
+    _note.dispose();
+    _examples.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    await StyleProfile.writeOwn(_note.text, _examples.text);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.profile;
+    return Scaffold(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s4, Nl.s5, Nl.s6),
+          children: [
+            Row(children: [
+              RoundIconButton(
+                  icon: Icons.arrow_back,
+                  tooltip: 'Zurück',
+                  onPressed: () => Navigator.of(context).pop()),
+              const SizedBox(width: Nl.s4),
+              const Expanded(child: SectionLabel('Mein Stil')),
+            ]),
+            const SizedBox(height: Nl.s5),
+            const Text('Damit Entwürfe nach dir klingen', style: Nl.title),
+            const SizedBox(height: Nl.s2),
+            const Text(
+              'Die KI übernimmt den Stil, nicht den Inhalt. Je mehr echte Beispiele, desto näher an dir.',
+              style: Nl.bodySmall,
+            ),
+            const SizedBox(height: Nl.s5),
+            const SectionLabel('So schreibe ich'),
+            const SizedBox(height: Nl.s2),
+            TextField(
+              controller: _note,
+              minLines: 2,
+              maxLines: 5,
+              style: Nl.body,
+              decoration: const InputDecoration(
+                  hintText:
+                      'z. B. kurz und trocken, immer per Du, gern ein Mundart-Wort, kein Emoji, Schluss mit «Häbs guet»'),
+            ),
+            const SizedBox(height: Nl.s5),
+            const SectionLabel('Beispiele von mir'),
+            const SizedBox(height: Nl.s2),
+            TextField(
+              controller: _examples,
+              minLines: 4,
+              maxLines: 12,
+              style: Nl.body,
+              decoration: const InputDecoration(
+                  hintText:
+                      'Zwei bis fünf echte Grüsse von dir einfügen, z. B. aus WhatsApp kopiert. Einer pro Absatz.'),
+            ),
+            const SizedBox(height: Nl.s5),
+            FilledButton(onPressed: _save, child: const Text('Speichern')),
+            const SizedBox(height: Nl.s6),
+            const SectionLabel('Automatisch gelernt'),
+            const SizedBox(height: Nl.s2),
+            if (p.learned.isEmpty)
+              const Text(
+                'Noch nichts. Die App lernt aus Grüssen, die du selbst geschrieben oder nach einem Entwurf angepasst und dann gesendet hast. Unverändert gesendete KI-Texte zählen nicht.',
+                style: Nl.bodySmall,
+              )
+            else ...[
+              for (final e in p.learned)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: Nl.s3),
+                  child: NlCard(
+                      child: Text(e,
+                          style: Nl.bodySmall.copyWith(color: Nl.inkSoft))),
+                ),
+              if (p.edits.isNotEmpty)
+                Text(
+                    '${p.edits.length} ${p.edits.length == 1 ? 'Korrektur' : 'Korrekturen'} an KI-Entwürfen fliessen zusätzlich ein.',
+                    style: Nl.caption),
+            ],
+          ],
+        ),
       ),
     );
   }

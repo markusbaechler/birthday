@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geburtstage/data/database.dart';
+import 'package:geburtstage/data/style_profile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geburtstage/main.dart';
 import 'package:geburtstage/theme/app_theme.dart';
@@ -316,12 +317,22 @@ void main() {
     ('07_kalender', const CalendarScreen()),
     ('08_personen', const PeopleScreen()),
     ('09_mehr', const SettingsScreen()),
+    (
+      '10_stil',
+      const StyleScreen(
+          profile: StyleProfile(learned: [
+        'Sili, 44! Und ich warte immer noch am Bodensee auf dich. Häbs guet hüt.',
+        'Peter, siebzig und immer noch vor allen andern auf dem Gipfel. Respekt, alter Freund.',
+      ], edits: [
+        ('a', 'b')
+      ]))
+    ),
   ]) {
     testWidgets('liste: $name', timeout: const Timeout(Duration(seconds: 90)), (tester) async {
       final db = await seedMany();
       await _shot(tester, name, screen,
-          nav: name.startsWith('06') ? 2 : name.startsWith('07') ? 1 : name.startsWith('09') ? 4 : 3,
-          db: db, height: name.startsWith('09') ? 3400 : 2340);
+          nav: name.startsWith('06') ? 2 : name.startsWith('07') ? 1 : name.startsWith('09') ? 4 : name.startsWith('10') ? -1 : 3,
+          db: db, height: name.startsWith('09') ? 3600 : 2340);
     });
   }
 }
