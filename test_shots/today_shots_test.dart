@@ -20,6 +20,10 @@ import 'package:geburtstage/ui/format.dart';
 import 'package:geburtstage/ui/calendar_screen.dart';
 import 'package:geburtstage/ui/greeting_editor.dart';
 import 'package:geburtstage/ui/people_screen.dart';
+import 'package:geburtstage/ui/person_screen.dart';
+import 'package:geburtstage/ui/person_edit_screen.dart';
+import 'package:geburtstage/ui/celebration.dart';
+import 'package:geburtstage/ui/import_screen.dart';
 import 'package:geburtstage/ui/planner_screen.dart';
 import 'package:geburtstage/ui/today_screen.dart';
 import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
@@ -335,4 +339,32 @@ void main() {
           db: db, height: name.startsWith('09') ? 3600 : 2340);
     });
   }
+
+  testWidgets('seite: Person', timeout: const Timeout(Duration(seconds: 90)), (tester) async {
+    final db = await seedMany();
+    final people = await db.allPeople();
+    final silvia = people.firstWhere((p) => p.firstName == 'Silvia');
+    await db.savePerson(silvia.copyWith(
+        relation: const Value('Schwester'),
+        tone: const Value('herzlich, frech'),
+        phone: const Value('+41 79 123 45 67'),
+        insiders: 'Velotour an den Bodensee\nimmer zu spät'));
+    await db.addNote(silvia.id, 'hat einen neuen Job in Winterthur');
+    await _shot(tester, '11_person', PersonScreen(personId: silvia.id), nav: -1, db: db);
+    await _shot(tester, '13_person_bearbeiten', PersonEditScreen(person: silvia),
+        nav: -1, db: db, height: 3600);
+  });
+
+  testWidgets('seite: Feier', timeout: const Timeout(Duration(seconds: 90)), (tester) async {
+    final lena = _p(7, 'Lena', 'Keller', 22, 11, 1996, 0);
+    await _shot(tester, '12_feier',
+        CelebrationScreen(upcoming: upcomingFor([lena], _today).first),
+        nav: -1);
+  });
+
+  testWidgets('seite: leer und Import', timeout: const Timeout(Duration(seconds: 90)), (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    await _shot(tester, '14_leer', const TodayScreen(), db: db);
+    await _shot(tester, '15_import', const ImportScreen(), nav: -1, db: db);
+  });
 }
