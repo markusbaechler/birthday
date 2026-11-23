@@ -24,6 +24,9 @@ class Poster {
     Poster(Color(0xFF3E9B4F), Color(0xFF226B34)), // green
   ];
 
+  /// A lighter tone, readable as text or line on the dark app background.
+  Color get light => Color.lerp(bg, Colors.white, 0.38)!;
+
   static Poster of(Person p) => all[p.id % all.length];
 }
 

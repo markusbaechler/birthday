@@ -11,6 +11,7 @@ import 'format.dart';
 import 'art.dart';
 import 'greeting_editor.dart';
 import 'motion.dart';
+import 'poster.dart';
 import 'person_edit_screen.dart';
 import 'widgets.dart';
 
@@ -20,8 +21,6 @@ class PersonScreen extends StatelessWidget {
 
   /// Tag of the ring the user tapped, for a shared-element transition.
   final String? heroTag;
-
-  static const _avatar = 120.0;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +38,6 @@ class PersonScreen extends StatelessWidget {
                 month: p.birthMonth,
                 year: p.birthYear,
                 today: DateTime.now());
-            final color = Nl.personColor(p.colorIndex, today: n.isToday);
             final hero = heroTextFor(Upcoming(p, n));
             final surname = surnameFor(p);
             final mine = (greetSnap.data ?? const <Greeting>[])
@@ -53,85 +51,153 @@ class PersonScreen extends StatelessWidget {
                     (g.sentText ?? '').trim().isNotEmpty)
                 .toList()
               ..sort((a, b) => b.year.compareTo(a.year));
-            return Stack(
+            final poster = Poster.of(p);
+            final top = MediaQuery.paddingOf(context).top;
+            Widget pad(Widget child) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Nl.s5),
+                child: child);
+            return ListView(
+              padding: const EdgeInsets.only(bottom: Nl.s6),
               children: [
-                if (n.isToday)
-                  const Positioned(
-                      top: 0, left: 0, right: 0, height: 420, child: SparkField()),
-                SafeArea(
-                  child: ListView(
-                    padding:
-                        const EdgeInsets.fromLTRB(Nl.s5, Nl.s5, Nl.s5, Nl.s6),
-                    children: [
-                      Row(
+                // The same poster as the card, as the head of the page.
+                SizedBox(
+                  height: 440 + top,
+                  child: Hero(
+                    tag: heroTag ?? 'person-ring-${p.id}',
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                          bottom: Radius.circular(36)),
+                      child: Stack(
+                        fit: StackFit.expand,
                         children: [
-                          RoundIconButton(
-                            icon: Icons.arrow_back,
-                            tooltip: 'Zurück',
-                            onPressed: () => Navigator.of(context).pop(),
+                          if (p.photo != null) ...[
+                            PersonBackdrop(person: p, color: poster.bg),
+                            const DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  stops: [0.0, 0.2, 0.5, 1.0],
+                                  colors: [
+                                    Color(0x80000000),
+                                    Color(0x00000000),
+                                    Color(0x33000000),
+                                    Color(0xE6000000),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ] else
+                            Padding(
+                              padding: EdgeInsets.only(top: top),
+                              child: PosterBackdrop(
+                                poster: poster,
+                                figure: n.turning != null
+                                    ? '${n.turning}'
+                                    : hero.big.characters.first.toUpperCase(),
+                              ),
+                            ),
+                          if (p.photo == null)
+                            Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: top + 1,
+                                child: ColoredBox(color: poster.bg)),
+                          if (n.isToday) const SparkField(),
+                          Positioned(
+                            top: top + Nl.s3,
+                            left: Nl.s4,
+                            right: Nl.s4,
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: Row(
+                                children: [
+                                  _GlassButton(
+                                    icon: Icons.arrow_back,
+                                    tooltip: 'Zurück',
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
+                                  ),
+                                  const Spacer(),
+                                  _GlassButton(
+                                    icon: Icons.edit_outlined,
+                                    tooltip: 'Profil bearbeiten',
+                                    onPressed: () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                PersonEditScreen(person: p))),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          const Spacer(),
-                          RoundIconButton(
-                            icon: Icons.edit_outlined,
-                            tooltip: 'Profil bearbeiten',
-                            onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                    builder: (_) =>
-                                        PersonEditScreen(person: p))),
+                          Positioned(
+                            left: Nl.s5,
+                            right: Nl.s5,
+                            bottom: Nl.s5,
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(hero.lead.toUpperCase(),
+                                      style: Nl.label.copyWith(
+                                          color: Colors.white
+                                              .withValues(alpha: 0.9),
+                                          fontSize: 13,
+                                          letterSpacing: 2.4,
+                                          fontWeight: FontWeight.w700,
+                                          fontVariations: const [
+                                            FontVariation('wght', 700)
+                                          ])),
+                                  const SizedBox(height: Nl.s1),
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(hero.big,
+                                        maxLines: 1,
+                                        style: Nl.display(68,
+                                            weight: 720,
+                                            color: Colors.white,
+                                            height: 1.02,
+                                            spacing: -2.2)),
+                                  ),
+                                  if (surname != null)
+                                    Text(surname,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Nl.display(25,
+                                            weight: 450,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.92),
+                                            height: 1.2)),
+                                  const SizedBox(height: Nl.s3),
+                                  Text(
+                                    [
+                                      hero.caption,
+                                      if (p.relation?.isNotEmpty ?? false)
+                                        p.relation!,
+                                    ].join(' · '),
+                                    style: Nl.bodySmall.copyWith(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.88),
+                                        fontSize: 15.5),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                      // The same poster as on the card: halo, name, one line.
-                      SizedBox(
-                        height: 250,
-                        child: Center(
-                          child: Hero(
-                            tag: heroTag ?? 'person-ring-${p.id}',
-                            child: Halo(
-                              color: color,
-                              radius: _avatar / 2,
-                              child: PersonAvatar(
-                                  person: p, size: _avatar, color: color),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Text(hero.lead.toUpperCase(),
-                          textAlign: TextAlign.center,
-                          style: Nl.label.copyWith(
-                              color: color, fontSize: 12.5, letterSpacing: 2.6)),
-                      const SizedBox(height: Nl.s2),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(hero.big,
-                            maxLines: 1,
-                            style: Nl.display(64,
-                                weight: 300,
-                                color: Nl.ink,
-                                height: 1.08,
-                                spacing: -1)),
-                      ),
-                      if (surname != null)
-                        Text(surname,
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Nl.display(24,
-                                weight: 300, color: Nl.inkSoft, height: 1.2)),
-                      const SizedBox(height: Nl.s3),
-                      Text(
-                        [
-                          hero.caption,
-                          if (p.relation?.isNotEmpty ?? false) p.relation!,
-                        ].join(' · '),
-                        textAlign: TextAlign.center,
-                        style: Nl.bodySmall
-                            .copyWith(color: Nl.inkSoft, fontSize: 15),
-                      ),
-                      const SizedBox(height: Nl.s5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: Nl.s5),
+                ...[
                       _GreetingCard(person: p, greeting: current, today: n.isToday),
                       const SizedBox(height: Nl.s3),
-                      Center(child: _ProfileLine(person: p)),
+                      _ProfileLine(person: p),
                       if (p.insiders.trim().isNotEmpty) ...[
                         const SizedBox(height: Nl.s6),
                         const SectionLabel('Insider und Erlebnisse'),
@@ -167,9 +233,7 @@ class PersonScreen extends StatelessWidget {
                             ),
                           ),
                       ],
-                    ],
-                  ),
-                ),
+                ].map(pad),
               ],
             );
           },
@@ -177,6 +241,34 @@ class PersonScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Round button of frosted glass, for use on a poster or photo.
+class _GlassButton extends StatelessWidget {
+  const _GlassButton(
+      {required this.icon, required this.tooltip, required this.onPressed});
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.black.withValues(alpha: 0.22),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+            ),
+            child: Icon(icon, size: 20, color: Colors.white),
+          ),
+        ),
+      );
 }
 
 /// The greeting for the next birthday: its state and text, or the invitation
@@ -274,8 +366,7 @@ class _ProfileLine extends StatelessWidget {
       'per ${Channels.label(p.channel)}',
       if (p.phone?.isNotEmpty ?? false) p.phone!,
     ];
-    return Text(parts.join(' · '),
-        textAlign: TextAlign.center, style: Nl.caption);
+    return Text(parts.join(' · '), style: Nl.caption);
   }
 }
 

@@ -17,6 +17,7 @@ import '../main.dart';
 import '../theme/tokens.dart';
 import 'format.dart';
 import 'motion.dart';
+import 'poster.dart';
 import 'widgets.dart';
 
 /// Everything for one person's next birthday greeting: text (AI drafts,
@@ -411,7 +412,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final color = Nl.personColor(p.colorIndex, today: _next.isToday);
+    final color = Poster.of(p).light;
     final scheduled = _greeting?.status == GreetingStatus.scheduled;
     final sent = _greeting?.status == GreetingStatus.sent;
     final hasText = _text.text.trim().isNotEmpty;

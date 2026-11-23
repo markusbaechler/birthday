@@ -51,7 +51,7 @@ class PersonRing extends StatelessWidget {
   Widget build(BuildContext context) => PersonAvatar(
         person: person,
         size: size,
-        color: Nl.personColor(person.colorIndex, today: today),
+        color: today ? Colors.white : Colors.transparent,
       );
 }
 

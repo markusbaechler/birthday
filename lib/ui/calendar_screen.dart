@@ -7,6 +7,7 @@ import '../theme/tokens.dart';
 import 'format.dart';
 import 'motion.dart';
 import 'person_screen.dart';
+import 'poster.dart';
 import 'widgets.dart';
 
 /// All birthdays in chronological order, from this month to the same month
@@ -218,7 +219,7 @@ class _DayRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = u.person;
     final n = u.next;
-    final color = Nl.personColor(p.colorIndex, today: n.isToday);
+    final color = Poster.of(p).light;
     final what = [
       if (n.turning != null) 'wird ${n.turning}' else 'Geburtstag',
       if (p.relation?.isNotEmpty ?? false) p.relation!,

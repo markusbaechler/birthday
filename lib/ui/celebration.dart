@@ -11,6 +11,8 @@ import '../domain/dedupe.dart';
 import '../theme/tokens.dart';
 import 'art.dart';
 import 'format.dart';
+import 'greeting_editor.dart';
+import 'poster.dart';
 import 'motion.dart';
 
 /// The birthday spectacle: full screen, once per person and day.
@@ -108,27 +110,10 @@ class _CelebrationScreenState extends State<CelebrationScreen>
     super.dispose();
   }
 
-  Future<void> _congratulate() async {
-    final p = widget.upcoming.person;
-    final phone = normalizePhone(p.phone);
-    Uri? uri;
-    if (p.channel == Channels.whatsapp && phone != null) {
-      uri = Uri.parse('https://wa.me/${phone.substring(1)}');
-    } else if (p.channel == Channels.sms && phone != null) {
-      uri = Uri.parse('sms:$phone');
-    } else if (p.channel == Channels.email && (p.email?.isNotEmpty ?? false)) {
-      uri = Uri(scheme: 'mailto', path: p.email);
-    } else if (phone != null) {
-      uri = Uri.parse('tel:$phone');
-    }
-    if (uri == null) {
-      if (mounted) Navigator.of(context).pop();
-      return;
-    }
-    try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {}
-    if (mounted) Navigator.of(context).pop();
+  /// Straight into the greeting: text, card and sending are all there.
+  void _congratulate() {
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => GreetingEditor(person: widget.upcoming.person)));
   }
 
   double _seg(double start, double dur) =>
@@ -144,13 +129,23 @@ class _CelebrationScreenState extends State<CelebrationScreen>
     final count = _seg(0.95, 0.9);
     final lead = _seg(0.6, 0.5);
     final actions = _seg(2.0, 0.5);
-    final color = Nl.accent;
+    final poster = Poster.of(p);
+    const color = Colors.white;
 
     return Scaffold(
-      backgroundColor: Nl.bg,
+      backgroundColor: poster.bg,
       body: Stack(
         fit: StackFit.expand,
         children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [poster.bg, poster.deep],
+              ),
+            ),
+          ),
           // Glow that swells with the burst.
           IgnorePointer(
             child: CustomPaint(
@@ -171,7 +166,7 @@ class _CelebrationScreenState extends State<CelebrationScreen>
                     child: IconButton(
                       tooltip: 'Schliessen',
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close, color: Nl.inkSoft),
+                      icon: const Icon(Icons.close, color: Colors.white),
                     ),
                   ),
                   const Spacer(),
@@ -194,7 +189,7 @@ class _CelebrationScreenState extends State<CelebrationScreen>
                     opacity: lead,
                     child: Text(
                       target != null ? '$name wird heute' : 'Heute hat Geburtstag',
-                      style: Nl.lead.copyWith(color: Nl.ink),
+                      style: Nl.lead.copyWith(color: Colors.white),
                     ),
                   ),
                   Transform.scale(
@@ -207,9 +202,9 @@ class _CelebrationScreenState extends State<CelebrationScreen>
                           target != null ? '${(target * count).round()}' : name,
                           maxLines: 1,
                           style: Nl.countdown.copyWith(
-                            fontVariations: const [FontVariation('wght', 260), FontVariation('opsz', 144)],
+                            fontVariations: const [FontVariation('wght', 800), FontVariation('opsz', 144)],
                               color: color,
-                              fontSize: target != null ? 176 : 112,
+                              fontSize: target != null ? 210 : 112,
                               height: 1.0),
                         ),
                       ),
@@ -218,7 +213,7 @@ class _CelebrationScreenState extends State<CelebrationScreen>
                   Opacity(
                     opacity: lead,
                     child: Text(fullName(p),
-                        style: Nl.bodySmall.copyWith(color: Nl.muted)),
+                        style: Nl.body.copyWith(color: Colors.white.withValues(alpha: 0.9))),
                   ),
                   const Spacer(),
                   Opacity(
@@ -229,11 +224,16 @@ class _CelebrationScreenState extends State<CelebrationScreen>
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           FilledButton(
+                            style: FilledButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: poster.deep),
                             onPressed: actions > 0.5 ? _congratulate : null,
-                            child: Text('Gratulieren per ${Channels.label(p.channel)}'),
+                            child: const Text('Jetzt gratulieren'),
                           ),
                           const SizedBox(height: Nl.s2),
                           TextButton(
+                            style: TextButton.styleFrom(
+                                foregroundColor: Colors.white),
                             onPressed: () => Navigator.of(context).pop(),
                             child: const Text('Später'),
                           ),
