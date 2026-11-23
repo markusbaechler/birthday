@@ -8,6 +8,7 @@ import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
@@ -33,7 +34,7 @@ import kotlin.math.roundToInt
  *
  * The app stores all birthdays as JSON ("people", with optional photo
  * paths). The widgets compute the days themselves and draw the whole widget
- * as one image: photo, rings, light, thin type. Android refreshes them every
+ * as one image: a poster in the person's colour with a giant age. Android refreshes them every
  * 30 minutes, and on every resize.
  */
 data class Entry(
@@ -50,7 +51,15 @@ data class Next(val entry: Entry, val days: Int, val turning: Int?, val weekday:
 
 object BirthdayCalc {
     const val ROSE = 0xFFE9A7C0.toInt()
-    private val PALETTE = intArrayOf(0xFF8FB4E8.toInt(), 0xFF8FD0AA.toInt(), 0xFFE3C27A.toInt())
+    // The same posters as in the app (lib/ui/poster.dart).
+    private val PALETTE = intArrayOf(
+        0xFFE4572E.toInt(), 0xFF0E7C7B.toInt(), 0xFF6C4CE0.toInt(), 0xFFD98A0B.toInt(),
+        0xFFD0407F.toInt(), 0xFF2D6CDF.toInt(), 0xFF3E9B4F.toInt())
+    private val DEEP = intArrayOf(
+        0xFFAE3513.toInt(), 0xFF075453.toInt(), 0xFF462BB0.toInt(), 0xFFA05F00.toInt(),
+        0xFF9A2157.toInt(), 0xFF1848A8.toInt(), 0xFF226B34.toInt())
+
+    fun deep(n: Next): Int = DEEP[Math.floorMod(n.entry.color, DEEP.size)]
     private val WEEKDAYS = arrayOf("", "Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag")
     private val WEEKDAYS_SHORT = arrayOf("", "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa")
 
@@ -100,7 +109,7 @@ object BirthdayCalc {
         }.sortedBy { it.days }
     }
 
-    fun color(n: Next): Int = if (n.days == 0) ROSE else PALETTE[Math.floorMod(n.entry.color, PALETTE.size)]
+    fun color(n: Next): Int = PALETTE[Math.floorMod(n.entry.color, PALETTE.size)]
 
     /** Big element: the first name. */
     fun big(n: Next): String = n.entry.name
@@ -137,15 +146,21 @@ private class WidgetPainter(private val context: Context, private val d: Float) 
             try {
                 return Typeface.Builder(context.assets, "flutter_assets/assets/fonts/RobotoFlex.ttf")
                     .setFontVariationSettings("'wght' $weight, 'opsz' 144")
-                    .build() ?: Typeface.create("sans-serif-thin", Typeface.NORMAL)
+                    .build() ?: fallback(weight)
             } catch (e: Exception) {
                 // fall through
             }
         }
-        return Typeface.create("sans-serif-thin", Typeface.NORMAL)
+        return fallback(weight)
     }
 
+    private fun fallback(weight: Int): Typeface =
+        if (weight >= 600) Typeface.create("sans-serif", Typeface.BOLD)
+        else Typeface.create("sans-serif-thin", Typeface.NORMAL)
+
     private val thin by lazy { flex(180) }
+    private val bold by lazy { flex(720) }
+    private val heavy by lazy { flex(800) }
     private val light by lazy { flex(320) }
 
     private fun dp(v: Float) = v * d
@@ -166,22 +181,17 @@ private class WidgetPainter(private val context: Context, private val d: Float) 
         } else {
             val color = BirthdayCalc.color(first)
             val heroW = if (large) w * 0.56f else w.toFloat()
-            drawGlow(c, heroW * 0.3f, h * 0.85f, max(heroW, h.toFloat()) * 0.95f, color, 0.26f)
-            drawRings(c, heroW * 0.98f, h * 0.12f, min(heroW, h.toFloat()), color)
-            if (first.days == 0) drawSparks(c, heroW, h.toFloat(), color)
             drawHero(c, first, color, heroW, h.toFloat(), large)
             if (large) drawList(c, list.drop(1).take(3), heroW, w.toFloat(), h.toFloat())
         }
         c.restore()
-        val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = dp(1f)
-            this.color = border
-        }
-        val inset = dp(0.5f)
-        c.drawRoundRect(RectF(inset, inset, w - inset, h - inset), radius, radius, stroke)
         return bmp
     }
+
+    private fun blend(a: Int, b: Int, t: Float): Int = Color.rgb(
+        (Color.red(a) + (Color.red(b) - Color.red(a)) * t).roundToInt(),
+        (Color.green(a) + (Color.green(b) - Color.green(a)) * t).roundToInt(),
+        (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t).roundToInt())
 
     private fun drawGlow(c: Canvas, cx: Float, cy: Float, r: Float, color: Int, alpha: Float) {
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -211,47 +221,71 @@ private class WidgetPainter(private val context: Context, private val d: Float) 
         }
     }
 
+    /** A poster in the person's colour: giant age, bold first name. */
     private fun drawHero(c: Canvas, n: Next, color: Int, w: Float, h: Float, large: Boolean) {
+        val deep = BirthdayCalc.deep(n)
         val pad = dp(18f)
-        val avatar = dp(if (large) 40f else 36f)
-        drawAvatar(c, n, w - pad - avatar, pad, avatar, color)
+        c.save()
+        c.clipRect(0f, 0f, w, h)
 
-        // When: small caps, top left.
-        val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = sansMedium
-            textSize = dp(11f)
-            letterSpacing = 0.14f
-            this.color = if (n.days == 0) BirthdayCalc.ROSE else muted
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        bgPaint.shader = LinearGradient(0f, 0f, w, h, color, blend(color, deep, 0.75f), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, w, h, bgPaint)
+        drawGlow(c, 0f, 0f, max(w, h) * 0.8f, Color.WHITE, 0.2f)
+
+        // Giant figure: the age, or the first letter.
+        val figure = n.turning?.toString() ?: n.entry.name.take(1).uppercase()
+        val fig = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = heavy
+            this.color = withAlpha(deep, 0.62f)
+            textSize = h * (if (figure.length > 2) 0.7f else 0.95f)
+            letterSpacing = -0.06f
+            textAlign = Paint.Align.RIGHT
         }
-        c.drawText(BirthdayCalc.whenText(n), pad, pad + dp(12f), label)
+        c.drawText(figure, w + dp(6f), h * 0.62f, fig)
+        if (n.days == 0) drawSparks(c, w, h, Color.WHITE)
 
-        // Bottom line: who and weekday.
+        if (n.entry.photo != null) {
+            val avatar = dp(if (large) 40f else 36f)
+            drawAvatar(c, n, pad, pad, avatar, color)
+        }
+
+        // Bottom line: age and weekday.
         val below = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = sans
             textSize = dp(13f)
-            this.color = inkSoft
+            this.color = withAlpha(Color.WHITE, 0.9f)
         }
         val belowBaseline = h - pad
         c.drawText(ellipsize(BirthdayCalc.below(n), below, w - 2 * pad), pad, belowBaseline, below)
 
-        // Big age or name: thin, as large as fits between label and bottom line.
-        val big = BirthdayCalc.big(n)
-        val bigPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = thin
-            this.color = color
-            letterSpacing = -0.02f
+        // First name: bold, as wide as fits.
+        val name = BirthdayCalc.big(n)
+        val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = bold
+            this.color = Color.WHITE
+            letterSpacing = -0.03f
         }
-        val top = pad + dp(20f)
-        val bottom = belowBaseline - dp(18f)
+        var size = min(h * 0.27f, dp(46f))
+        namePaint.textSize = size
         val maxW = w - 2 * pad
-        var size = (bottom - top) * 1.18f
-        bigPaint.textSize = size
-        val measured = bigPaint.measureText(big)
+        val measured = namePaint.measureText(name)
         if (measured > maxW) {
             size *= maxW / measured
-            bigPaint.textSize = size
+            namePaint.textSize = size
         }
-        c.drawText(big, pad - dp(2f), bottom, bigPaint)
+        val nameBaseline = belowBaseline - dp(21f)
+        c.drawText(name, pad - dp(1f), nameBaseline, namePaint)
+
+        // When: small caps above the name.
+        val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = sansMedium
+            textSize = dp(11f)
+            letterSpacing = 0.14f
+            this.color = withAlpha(Color.WHITE, 0.92f)
+        }
+        c.drawText(BirthdayCalc.whenText(n), pad, nameBaseline - size * 0.82f - dp(5f), label)
+        c.restore()
     }
 
     private fun drawList(c: Canvas, rows: List<Next>, x0: Float, x1: Float, h: Float) {
@@ -293,26 +327,28 @@ private class WidgetPainter(private val context: Context, private val d: Float) 
             p.shader = shader
             c.drawCircle(cx, cy, inner, p)
         } else {
-            val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = withAlpha(color, 0.14f) }
-            c.drawCircle(cx, cy, inner, fill)
+            val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
+            c.drawCircle(cx, cy, size / 2, fill)
             val initials = n.entry.full.split(" ")
                 .mapNotNull { w -> w.firstOrNull { it.isLetter() } }.take(2)
                 .joinToString("") { it.uppercase() }
             val t = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                typeface = light
+                typeface = bold
                 textSize = size * 0.36f
-                this.color = color
+                this.color = Color.WHITE
                 textAlign = Paint.Align.CENTER
             }
             val fm = t.fontMetrics
             c.drawText(initials, cx, cy - (fm.ascent + fm.descent) / 2, t)
         }
-        val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = dp(1.2f)
-            this.color = color
+        if (photo != null) {
+            val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = dp(1.2f)
+                this.color = withAlpha(Color.WHITE, 0.7f)
+            }
+            c.drawCircle(cx, cy, size / 2 - dp(0.6f), ring)
         }
-        c.drawCircle(cx, cy, size / 2 - dp(0.6f), ring)
     }
 
     private fun drawEmpty(c: Canvas, w: Int, h: Int) {

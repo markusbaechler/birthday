@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../ui/poster.dart';
 import 'database.dart';
 
 /// Keeps the home screen widgets in sync with the database.
@@ -55,7 +56,7 @@ class WidgetSync {
             'd': p.birthDay,
             'm': p.birthMonth,
             'y': p.birthYear,
-            'c': p.colorIndex,
+            'c': p.id % Poster.all.length,
             'p': photos[p.id],
           }
       ];
