@@ -21,7 +21,9 @@ import 'package:geburtstage/ui/greeting_editor.dart';
 import 'package:geburtstage/ui/people_screen.dart';
 import 'package:geburtstage/ui/planner_screen.dart';
 import 'package:geburtstage/ui/today_screen.dart';
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:geburtstage/ui/settings_screen.dart';
 import 'package:drift/native.dart';
 
 Future<void> _font(String family, String path) async {
@@ -121,12 +123,16 @@ Future<void> _shot(WidgetTester tester, String name, Widget body,
       ..writeAsBytesSync(png!.buffer.asUint8List());
   });
   await tester.pumpWidget(const SizedBox());
+  // Let drift's stream clean-up timers run out.
+  await tester.pump(const Duration(seconds: 2));
 }
 
 void main() {
   setUpAll(() async {
     Ambient.sensorsEnabled = false;
     SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
     const flex = 'assets/fonts/RobotoFlex.ttf';
     await _font('RobotoFlex', flex);
     await _font('Roboto', flex);
@@ -309,11 +315,13 @@ void main() {
     ('06_gruesse', const PlannerScreen()),
     ('07_kalender', const CalendarScreen()),
     ('08_personen', const PeopleScreen()),
+    ('09_mehr', const SettingsScreen()),
   ]) {
     testWidgets('liste: $name', timeout: const Timeout(Duration(seconds: 90)), (tester) async {
       final db = await seedMany();
       await _shot(tester, name, screen,
-          nav: name.startsWith('06') ? 2 : name.startsWith('07') ? 1 : 3, db: db);
+          nav: name.startsWith('06') ? 2 : name.startsWith('07') ? 1 : name.startsWith('09') ? 4 : 3,
+          db: db, height: name.startsWith('09') ? 3400 : 2340);
     });
   }
 }

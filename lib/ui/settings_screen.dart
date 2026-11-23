@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../data/ai_service.dart';
 import '../data/backup_service.dart';
+import '../data/greeting_service.dart';
+import '../data/share_bridge.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart';
 import '../theme/tokens.dart';
 import 'import_screen.dart';
@@ -96,13 +99,10 @@ class SettingsScreen extends StatelessWidget {
         const SizedBox(height: Nl.s2),
         const _ApiKeyRow(),
         const SizedBox(height: Nl.s6),
-        const SectionLabel('In Arbeit'),
+        const SectionLabel('Erinnerungen'),
         const SizedBox(height: Nl.s2),
-        const Text(
-          'Als Nächstes: automatischer Versand per SMS für Personen ohne WhatsApp, Erinnerungen ohne geplanten Gruss.',
-          style: Nl.bodySmall,
-        ),
-        const SizedBox(height: Nl.s5),
+        const _ReminderSection(),
+        const SizedBox(height: Nl.s6),
         const Text('Version 0.1.0', style: Nl.caption),
       ],
     );
@@ -230,4 +230,244 @@ class _ApiKeyRowState extends State<_ApiKeyRow> {
           ],
         ),
       );
+}
+
+
+/// Reminder times, a health check of what Android allows, and a test.
+class _ReminderSection extends StatefulWidget {
+  const _ReminderSection();
+
+  @override
+  State<_ReminderSection> createState() => _ReminderSectionState();
+}
+
+class _ReminderSectionState extends State<_ReminderSection>
+    with WidgetsBindingObserver {
+  var _s = const ReminderSettings();
+  bool? _notifications;
+  bool? _exact;
+  bool? _battery;
+  int? _pending;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Coming back from Android's settings: check again.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final settings = ReminderSettings.read(prefs);
+    bool? n, e, b;
+    int? pending;
+    try {
+      final st = await GreetingService.instance.status();
+      n = st.notifications;
+      e = st.exact;
+      pending = await GreetingService.instance.pendingReminders();
+      b = await ShareBridge.batteryUnrestricted();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _s = settings;
+      _notifications = n;
+      _exact = e;
+      _battery = b;
+      _pending = pending;
+    });
+  }
+
+  Future<void> _save(ReminderSettings s) async {
+    setState(() => _s = s);
+    await s.write(await SharedPreferences.getInstance());
+    await GreetingService.instance.rescheduleReminders();
+    await _load();
+  }
+
+  Future<void> _pick(bool eve) async {
+    final t = await showTimePicker(
+        context: context,
+        initialTime: eve
+            ? TimeOfDay(hour: _s.eveHour, minute: _s.eveMinute)
+            : TimeOfDay(hour: _s.dayHour, minute: _s.dayMinute));
+    if (t == null) return;
+    await _save(ReminderSettings(
+      eve: _s.eve,
+      eveHour: eve ? t.hour : _s.eveHour,
+      eveMinute: eve ? t.minute : _s.eveMinute,
+      day: _s.day,
+      dayHour: eve ? _s.dayHour : t.hour,
+      dayMinute: eve ? _s.dayMinute : t.minute,
+    ));
+  }
+
+  Future<void> _test() async {
+    final messenger = ScaffoldMessenger.of(context);
+    await GreetingService.instance.requestPermissions();
+    await GreetingService.instance.scheduleTest();
+    await _load();
+    messenger.showSnackBar(const SnackBar(
+        duration: Duration(seconds: 6),
+        content: Text(
+            'Test kommt in 1 Minute. Jetzt den Bildschirm sperren und warten.')));
+  }
+
+  static String _hm(int h, int m) =>
+      '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+
+  Widget _timeRow(String title, String sub, bool on, String time,
+          ValueChanged<bool> onToggle, VoidCallback onTime) =>
+      Container(
+        padding: const EdgeInsets.symmetric(vertical: Nl.s2),
+        decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Nl.divider))),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: Nl.body.copyWith(color: Nl.ink)),
+                  Text(sub, style: Nl.caption),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: on ? onTime : null,
+              child: Text(time,
+                  style: Nl.display(22,
+                      weight: 300, color: on ? Nl.accent : Nl.borderControl)),
+            ),
+            Switch(value: on, onChanged: onToggle),
+          ],
+        ),
+      );
+
+  Widget _check(String title, String fix, bool? ok, VoidCallback onFix) {
+    final color = ok == null
+        ? Nl.muted
+        : ok
+            ? Nl.personGreen
+            : Nl.personAmber;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Nl.s2),
+      child: Row(
+        children: [
+          Icon(
+              ok == null
+                  ? Icons.help_outline
+                  : ok
+                      ? Icons.check_circle_outline
+                      : Icons.error_outline,
+              size: 20,
+              color: color),
+          const SizedBox(width: Nl.s3),
+          Expanded(
+              child: Text(title,
+                  style: Nl.bodySmall.copyWith(color: Nl.inkSoft))),
+          if (ok == false)
+            TextButton(onPressed: onFix, child: Text(fix)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allGood =
+        _notifications == true && _exact == true && _battery == true;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _timeRow(
+          'Am Vorabend',
+          'Zeit, um noch einen Gruss vorzubereiten',
+          _s.eve,
+          _hm(_s.eveHour, _s.eveMinute),
+          (v) => _save(ReminderSettings(
+              eve: v,
+              eveHour: _s.eveHour,
+              eveMinute: _s.eveMinute,
+              day: _s.day,
+              dayHour: _s.dayHour,
+              dayMinute: _s.dayMinute)),
+          () => _pick(true),
+        ),
+        _timeRow(
+          'Am Geburtstag',
+          'Entfällt, wenn ein Gruss geplant ist',
+          _s.day,
+          _hm(_s.dayHour, _s.dayMinute),
+          (v) => _save(ReminderSettings(
+              eve: _s.eve,
+              eveHour: _s.eveHour,
+              eveMinute: _s.eveMinute,
+              day: v,
+              dayHour: _s.dayHour,
+              dayMinute: _s.dayMinute)),
+          () => _pick(false),
+        ),
+        const SizedBox(height: Nl.s4),
+        NlCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                  allGood
+                      ? 'Alles bereit für pünktliche Erinnerungen'
+                      : 'Verlässlichkeit prüfen',
+                  style: Nl.body.copyWith(color: Nl.ink)),
+              const SizedBox(height: Nl.s2),
+              _check('Benachrichtigungen erlaubt', 'Erlauben', _notifications,
+                  () async {
+                await GreetingService.instance.requestPermissions();
+                if (!(await GreetingService.instance.status()).notifications) {
+                  await ShareBridge.openAppSettings();
+                }
+                await _load();
+              }),
+              _check('Pünktlich auf die Minute', 'Erlauben', _exact, () async {
+                await GreetingService.instance.requestPermissions();
+                await _load();
+              }),
+              _check('Akku: App wird nicht schlafen gelegt', 'Beheben', _battery,
+                  () async {
+                await ShareBridge.requestBatteryUnrestricted();
+              }),
+              if (_pending != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: Nl.s1),
+                  child: Text('$_pending Erinnerungen sind eingeplant.',
+                      style: Nl.caption),
+                ),
+              const SizedBox(height: Nl.s3),
+              OutlinedButton.icon(
+                onPressed: _test,
+                icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                label: const Text('Test in 1 Minute senden'),
+              ),
+              const SizedBox(height: Nl.s2),
+              const Text(
+                'Samsung: Falls der Test bei gesperrtem Bildschirm nicht kommt, in den Einstellungen unter Akku › Hintergrundnutzung «Geburtstage» bei «Nie in Standby» eintragen.',
+                style: Nl.caption,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }

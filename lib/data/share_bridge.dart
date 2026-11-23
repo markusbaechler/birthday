@@ -59,6 +59,27 @@ abstract final class ShareBridge {
     }
   }
 
+  /// True when Android does not put the app to sleep.
+  static Future<bool> batteryUnrestricted() async {
+    try {
+      return await _ch.invokeMethod<bool>('batteryUnrestricted') ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<void> requestBatteryUnrestricted() async {
+    try {
+      await _ch.invokeMethod('requestBatteryUnrestricted');
+    } catch (_) {}
+  }
+
+  static Future<void> openAppSettings() async {
+    try {
+      await _ch.invokeMethod('openAppSettings');
+    } catch (_) {}
+  }
+
   /// Hands [text] to the app [package] (e.g. ChatGPT opens a new chat).
   static Future<bool> sendTextToApp(String package, String text) async {
     try {

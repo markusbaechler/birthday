@@ -41,6 +41,7 @@ for perm in [
     "android.permission.RECEIVE_BOOT_COMPLETED",
     "android.permission.VIBRATE",
     "android.permission.USE_EXACT_ALARM",
+    "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
 ]:
     if perm not in text:
         text = text.replace(

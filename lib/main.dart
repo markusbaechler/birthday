@@ -87,12 +87,40 @@ class _HomeShellState extends State<HomeShell> {
   void initState() {
     super.initState();
     ShareBridge.incoming.addListener(_onShare);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _onShare());
+    GreetingService.openPerson.addListener(_onReminder);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _onShare();
+      _onReminder();
+      _askForNotifications();
+    });
+  }
+
+  /// Reminders need the permission; ask as soon as there is someone to
+  /// be reminded of.
+  Future<void> _askForNotifications() async {
+    try {
+      if ((await AppScope.of(context).allPeople()).isEmpty) return;
+      await GreetingService.instance.requestPermissions();
+    } catch (_) {}
+  }
+
+  /// A birthday reminder was tapped: open that person's greeting.
+  Future<void> _onReminder() async {
+    final id = GreetingService.openPerson.value;
+    if (id == null || !mounted) return;
+    GreetingService.openPerson.value = null;
+    final people = await AppScope.of(context).allPeople();
+    final person = people.where((p) => p.id == id).firstOrNull;
+    if (person == null || !mounted) return;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => GreetingEditor(person: person)));
   }
 
   @override
   void dispose() {
     ShareBridge.incoming.removeListener(_onShare);
+    GreetingService.openPerson.removeListener(_onReminder);
     super.dispose();
   }
 

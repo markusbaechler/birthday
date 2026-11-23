@@ -37,6 +37,21 @@ class MainActivity : FlutterActivity() {
                 "sendTextToApp" -> result.success(
                     sendTextToApp(call.argument<String>("package")!!, call.argument("text"))
                 )
+                "batteryUnrestricted" -> {
+                    val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
+                    result.success(pm.isIgnoringBatteryOptimizations(packageName))
+                }
+                "requestBatteryUnrestricted" -> result.success(openFirst(
+                    Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        Uri.parse("package:$packageName")),
+                    Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:$packageName"))
+                ))
+                "openAppSettings" -> result.success(openFirst(
+                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:$packageName"))
+                ))
                 else -> result.notImplemented()
             }
         }
@@ -50,6 +65,18 @@ class MainActivity : FlutterActivity() {
         val data = readShare(intent) ?: return
         val ch = channel
         if (ch == null) pending = data else ch.invokeMethod("share", data)
+    }
+
+    private fun openFirst(vararg intents: Intent): Boolean {
+        for (i in intents) {
+            try {
+                startActivity(i)
+                return true
+            } catch (e: Exception) {
+                // next
+            }
+        }
+        return false
     }
 
     /** Copies a shared image into the cache so Flutter can read it. */
