@@ -207,6 +207,7 @@ class _CelebrationScreenState extends State<CelebrationScreen>
                           target != null ? '${(target * count).round()}' : name,
                           maxLines: 1,
                           style: Nl.countdown.copyWith(
+                            fontVariations: const [FontVariation('wght', 260), FontVariation('opsz', 144)],
                               color: color,
                               fontSize: target != null ? 176 : 112,
                               height: 1.0),

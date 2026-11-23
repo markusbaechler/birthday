@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/database.dart';
 import '../domain/birthday.dart';
@@ -18,11 +21,15 @@ class PersonScreen extends StatelessWidget {
   /// Tag of the ring the user tapped, for a shared-element transition.
   final String? heroTag;
 
+  static const _avatar = 120.0;
+
   @override
   Widget build(BuildContext context) {
     final db = AppScope.of(context);
     return Scaffold(
-      body: StreamBuilder<Person?>(
+      body: StreamBuilder<List<Greeting>>(
+        stream: db.watchGreetings(),
+        builder: (context, greetSnap) => StreamBuilder<Person?>(
           stream: db.watchPerson(personId),
           builder: (context, snapshot) {
             final p = snapshot.data;
@@ -33,100 +40,223 @@ class PersonScreen extends StatelessWidget {
                 year: p.birthYear,
                 today: DateTime.now());
             final color = Nl.personColor(p.colorIndex, today: n.isToday);
+            final hero = heroTextFor(Upcoming(p, n));
+            final surname = surnameFor(p);
+            final mine = (greetSnap.data ?? const <Greeting>[])
+                .where((g) => g.personId == p.id)
+                .toList();
+            final current =
+                mine.where((g) => g.year == n.date.year).firstOrNull;
+            final history = mine
+                .where((g) =>
+                    g.status == GreetingStatus.sent &&
+                    (g.sentText ?? '').trim().isNotEmpty)
+                .toList()
+              ..sort((a, b) => b.year.compareTo(a.year));
             return Stack(
               children: [
-                // Photo (or colour light) behind the top, fading into the page.
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 420,
-                  child: Stack(
-                    fit: StackFit.expand,
+                if (n.isToday)
+                  const Positioned(
+                      top: 0, left: 0, right: 0, height: 420, child: SparkField()),
+                SafeArea(
+                  child: ListView(
+                    padding:
+                        const EdgeInsets.fromLTRB(Nl.s5, Nl.s5, Nl.s5, Nl.s6),
                     children: [
-                      PersonBackdrop(person: p, color: color),
-                      const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            stops: [0.0, 0.45, 1.0],
-                            colors: [
-                              Color(0x660E0C12),
-                              Color(0x990E0C12),
-                              Nl.bg,
-                            ],
+                      Row(
+                        children: [
+                          RoundIconButton(
+                            icon: Icons.arrow_back,
+                            tooltip: 'Zurück',
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                          const Spacer(),
+                          RoundIconButton(
+                            icon: Icons.edit_outlined,
+                            tooltip: 'Profil bearbeiten',
+                            onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        PersonEditScreen(person: p))),
+                          ),
+                        ],
+                      ),
+                      // The same poster as on the card: halo, name, one line.
+                      SizedBox(
+                        height: 250,
+                        child: Center(
+                          child: Hero(
+                            tag: heroTag ?? 'person-ring-${p.id}',
+                            child: Halo(
+                              color: color,
+                              radius: _avatar / 2,
+                              child: PersonAvatar(
+                                  person: p, size: _avatar, color: color),
+                            ),
                           ),
                         ),
                       ),
+                      Text(hero.lead.toUpperCase(),
+                          textAlign: TextAlign.center,
+                          style: Nl.label.copyWith(
+                              color: color, fontSize: 12.5, letterSpacing: 2.6)),
+                      const SizedBox(height: Nl.s2),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(hero.big,
+                            maxLines: 1,
+                            style: Nl.display(64,
+                                weight: 300,
+                                color: Nl.ink,
+                                height: 1.08,
+                                spacing: -1)),
+                      ),
+                      if (surname != null)
+                        Text(surname,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Nl.display(24,
+                                weight: 300, color: Nl.inkSoft, height: 1.2)),
+                      const SizedBox(height: Nl.s3),
+                      Text(
+                        [
+                          hero.caption,
+                          if (p.relation?.isNotEmpty ?? false) p.relation!,
+                        ].join(' · '),
+                        textAlign: TextAlign.center,
+                        style: Nl.bodySmall
+                            .copyWith(color: Nl.inkSoft, fontSize: 15),
+                      ),
+                      const SizedBox(height: Nl.s5),
+                      _GreetingCard(person: p, greeting: current, today: n.isToday),
+                      const SizedBox(height: Nl.s3),
+                      Center(child: _ProfileLine(person: p)),
+                      if (p.insiders.trim().isNotEmpty) ...[
+                        const SizedBox(height: Nl.s6),
+                        const SectionLabel('Insider und Erlebnisse'),
+                        const SizedBox(height: Nl.s2),
+                        Text(p.insiders.trim(), style: Nl.body),
+                      ],
+                      const SizedBox(height: Nl.s6),
+                      _Notes(personId: p.id),
+                      if (history.isNotEmpty) ...[
+                        const SizedBox(height: Nl.s6),
+                        const SectionLabel('Bisherige Grüsse'),
+                        const SizedBox(height: Nl.s1),
+                        for (final g in history)
+                          Container(
+                            width: double.infinity,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: Nl.s3),
+                            decoration: const BoxDecoration(
+                                border: Border(
+                                    bottom: BorderSide(color: Nl.divider))),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                    width: 72,
+                                    child:
+                                        Text('${g.year}', style: Nl.caption)),
+                                Expanded(
+                                    child: Text(g.sentText!.trim(),
+                                        style: Nl.bodySmall
+                                            .copyWith(color: Nl.inkSoft))),
+                              ],
+                            ),
+                          ),
+                      ],
                     ],
                   ),
-                ),
-                SafeArea(
-                  child: ListView(
-              padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s5, Nl.s5, Nl.s6),
-              children: [
-                Row(
-                  children: [
-                    RoundIconButton(
-                      icon: Icons.arrow_back,
-                      tooltip: 'Zurück',
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                    const Spacer(),
-                    Hero(
-                      tag: heroTag ?? 'person-ring-${p.id}',
-                      child: PersonRing(
-                          person: p, size: 56, today: n.isToday),
-                    ),
-                    const Spacer(),
-                    RoundIconButton(
-                      icon: Icons.edit_outlined,
-                      tooltip: 'Profil bearbeiten',
-                      onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => PersonEditScreen(person: p))),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: Nl.s5),
-                Builder(builder: (context) {
-                  final hero = heroTextFor(Upcoming(p, n));
-                  return AnimatedCountdownHero(
-                    celebrate: n.isToday,
-                    lead: hero.lead,
-                    number: hero.big,
-                    caption: [
-                      hero.caption,
-                      if (p.relation?.isNotEmpty ?? false) p.relation!,
-                    ].join(' · '),
-                    color: color,
-                  );
-                }),
-                const SizedBox(height: Nl.s5),
-                _ProfileLine(person: p),
-                const SizedBox(height: Nl.s4),
-                FilledButton.icon(
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => GreetingEditor(person: p))),
-                  icon: const Icon(Icons.edit_note, size: 20),
-                  label: const Text('Gruss schreiben und planen'),
-                ),
-                if (p.insiders.trim().isNotEmpty) ...[
-                  const SizedBox(height: Nl.s5),
-                  const SectionLabel('Insider und Erlebnisse'),
-                  const SizedBox(height: Nl.s2),
-                  Text(p.insiders.trim(), style: Nl.body),
-                ],
-                const SizedBox(height: Nl.s5),
-                _Notes(personId: p.id),
-              ],
-            ),
                 ),
               ],
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// The greeting for the next birthday: its state and text, or the invitation
+/// to prepare one. Opens the editor.
+class _GreetingCard extends StatelessWidget {
+  const _GreetingCard(
+      {required this.person, required this.greeting, required this.today});
+  final Person person;
+  final Greeting? greeting;
+  final bool today;
+
+  @override
+  Widget build(BuildContext context) {
+    void open() {
+      HapticFeedback.selectionClick();
+      Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => GreetingEditor(person: person)));
+    }
+
+    final g = greeting;
+    if (!GreetingBadge.hasContent(g) && g?.status != GreetingStatus.sent) {
+      return FilledButton.icon(
+        onPressed: open,
+        icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+        label: Text(today ? 'Jetzt gratulieren' : 'Gruss vorbereiten'),
+      );
+    }
+    final text = ((g!.status == GreetingStatus.sent ? g.sentText : null) ??
+            g.draft ??
+            '')
+        .trim();
+    final image = g.imagePath != null && File(g.imagePath!).existsSync()
+        ? g.imagePath
+        : null;
+    final at = g.scheduledAt;
+    final title = switch (g.status) {
+      GreetingStatus.sent => 'Gruss gesendet',
+      GreetingStatus.scheduled when at != null =>
+        'Gruss geplant · ${formatShort(at)}',
+      _ => 'Entwurf bereit, noch nicht geplant',
+    };
+    return PressScale(
+      child: GestureDetector(
+        onTap: open,
+        child: NlCard(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(
+                          child: Text(title,
+                              style: Nl.body.copyWith(color: Nl.ink))),
+                      GreetingBadge(greeting: g),
+                    ]),
+                    if (text.isNotEmpty) ...[
+                      const SizedBox(height: Nl.s2),
+                      Text(text,
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                          style: Nl.bodySmall.copyWith(color: Nl.inkSoft)),
+                    ],
+                  ],
+                ),
+              ),
+              if (image != null) ...[
+                const SizedBox(width: Nl.s3),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(Nl.rS),
+                  child: Image.file(File(image),
+                      width: 56, height: 70, fit: BoxFit.cover, cacheWidth: 168),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -144,7 +274,8 @@ class _ProfileLine extends StatelessWidget {
       'per ${Channels.label(p.channel)}',
       if (p.phone?.isNotEmpty ?? false) p.phone!,
     ];
-    return Text(parts.join(' · '), style: Nl.bodySmall.copyWith(color: Nl.muted));
+    return Text(parts.join(' · '),
+        textAlign: TextAlign.center, style: Nl.caption);
   }
 }
 

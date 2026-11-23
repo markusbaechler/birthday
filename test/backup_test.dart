@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geburtstage/data/backup_service.dart';
 import 'package:geburtstage/data/database.dart';
 
 void main() {
+  SharedPreferences.setMockInitialValues({});
   test('backup round trip keeps people, notes and greetings', () async {
     final db = AppDatabase(NativeDatabase.memory());
     final id = await db.addPerson(PeopleCompanion.insert(

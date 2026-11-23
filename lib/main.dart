@@ -17,6 +17,7 @@ import 'ui/greeting_editor.dart';
 import 'ui/people_screen.dart';
 import 'ui/planner_screen.dart';
 import 'ui/settings_screen.dart';
+import 'ui/setup_banner.dart';
 import 'ui/share_sheet.dart';
 import 'ui/today_screen.dart';
 
@@ -91,12 +92,20 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     ShareBridge.incoming.addListener(_onShare);
     GreetingService.openPerson.addListener(_onReminder);
+    tabRequest.addListener(_onTab);
     Future.delayed(const Duration(seconds: 6), _backup);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _onShare();
       _onReminder();
       _askForNotifications();
     });
+  }
+
+  void _onTab() {
+    final t = tabRequest.value;
+    if (t == null || !mounted) return;
+    tabRequest.value = null;
+    setState(() => _index = t);
   }
 
   // Leaving the app: secure what changed.
@@ -137,6 +146,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     ShareBridge.incoming.removeListener(_onShare);
     GreetingService.openPerson.removeListener(_onReminder);
+    tabRequest.removeListener(_onTab);
     super.dispose();
   }
 
@@ -188,7 +198,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       ),
       bottomNavigationBar: GlassNavBar(
         index: _index,
-        onSelect: (i) => setState(() => _index = i),
+        onSelect: (i) {
+          setState(() => _index = i);
+          setupRefresh.value++;
+        },
       ),
     );
   }

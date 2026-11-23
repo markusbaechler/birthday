@@ -16,6 +16,7 @@ import 'import_screen.dart';
 import 'motion.dart';
 import 'person_edit_screen.dart';
 import 'person_screen.dart';
+import 'setup_banner.dart';
 import 'widgets.dart';
 
 /// «Heute»: every upcoming birthday as a card, one way to browse:
@@ -190,6 +191,7 @@ class _TodayViewState extends State<TodayView>
                 ],
               ),
             ),
+            const SetupBanner(),
             const SizedBox(height: Nl.s3),
             Expanded(
               child: PageView.builder(
@@ -714,6 +716,10 @@ class _EmptyStart extends StatelessWidget {
             onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const PersonEditScreen())),
             child: const Text('Person hinzufügen'),
+          ),
+          TextButton(
+            onPressed: () => tabRequest.value = 4,
+            child: const Text('Sicherung wiederherstellen'),
           ),
         ],
       ),

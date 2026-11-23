@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'database.dart';
 import 'share_bridge.dart';
+import 'style_profile.dart';
 
 /// Backup as a single JSON file with people, notes, greetings and card
 /// images. Written automatically to Download/Geburtstage (survives an
@@ -25,7 +26,9 @@ class BackupService {
     final notes = await db.allNotes();
     final greetings = await db.select(db.greetings).get();
     final thisYear = DateTime.now().year;
+    final style = await StyleProfile.readOwn();
     return {
+      'style': {'note': style.note, 'examples': style.examples},
       'format': 'geburtstage-backup',
       'version': formatVersion,
       'exportedAt': DateTime.now().toUtc().toIso8601String(),
@@ -194,6 +197,9 @@ class BackupService {
   /// Replaces all data with the backup content.
   Future<int> restore(Map<String, dynamic> data) async {
     final people = (data['people'] as List).cast<Map<String, dynamic>>();
+    if (data['style'] case {'note': final String note, 'examples': final String ex}) {
+      await StyleProfile.writeOwn(note, ex);
+    }
     final notes = (data['notes'] as List? ?? const [])
         .cast<Map<String, dynamic>>();
     final greetings = (data['greetings'] as List? ?? const [])
