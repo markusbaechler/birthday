@@ -722,7 +722,9 @@ class _StyleScreenState extends State<StyleScreen> {
                 ),
               if (p.edits.isNotEmpty)
                 Text(
-                    '${p.edits.length} ${p.edits.length == 1 ? 'Korrektur' : 'Korrekturen'} an KI-Entwürfen fliessen zusätzlich ein.',
+                    p.edits.length == 1
+                        ? '1 Korrektur an einem KI-Entwurf fliesst zusätzlich ein.'
+                        : '${p.edits.length} Korrekturen an KI-Entwürfen fliessen zusätzlich ein.',
                     style: Nl.caption),
             ],
           ],
