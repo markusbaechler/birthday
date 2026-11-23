@@ -59,6 +59,18 @@ abstract final class ShareBridge {
     }
   }
 
+  /// Copies the file at [path] into Download/Geburtstage as [name] and
+  /// keeps only the newest [keep] backups there. False on old Android.
+  static Future<bool> saveToDownloads(String path, String name, {int keep = 7}) async {
+    try {
+      return await _ch.invokeMethod<bool>(
+              'saveToDownloads', {'path': path, 'name': name, 'keep': keep}) ??
+          false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// True when Android does not put the app to sleep.
   static Future<bool> batteryUnrestricted() async {
     try {

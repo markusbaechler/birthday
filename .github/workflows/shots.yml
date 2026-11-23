@@ -37,6 +37,7 @@ jobs:
         continue-on-error: true
         run: |
           sudo apt-get install -y -qq libsqlite3-dev > /dev/null
+          flutter test test/backup_test.dart
           timeout 600 flutter test -r expanded test_shots
       - name: Publish to branch "shots"
         if: always()

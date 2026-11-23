@@ -37,6 +37,9 @@ class MainActivity : FlutterActivity() {
                 "sendTextToApp" -> result.success(
                     sendTextToApp(call.argument<String>("package")!!, call.argument("text"))
                 )
+                "saveToDownloads" -> result.success(saveToDownloads(
+                    call.argument<String>("path")!!, call.argument<String>("name")!!,
+                    call.argument<Int>("keep") ?: 7))
                 "batteryUnrestricted" -> {
                     val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
                     result.success(pm.isIgnoringBatteryOptimizations(packageName))
@@ -65,6 +68,52 @@ class MainActivity : FlutterActivity() {
         val data = readShare(intent) ?: return
         val ch = channel
         if (ch == null) pending = data else ch.invokeMethod("share", data)
+    }
+
+    /**
+     * Writes a backup into Download/Geburtstage through MediaStore (no
+     * permission needed, survives an uninstall) and prunes old ones.
+     */
+    private fun saveToDownloads(path: String, name: String, keep: Int): Boolean {
+        if (Build.VERSION.SDK_INT < 29) return false
+        return try {
+            val media = android.provider.MediaStore.MediaColumns
+            val collection = android.provider.MediaStore.Downloads.getContentUri(
+                android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            // Our earlier backups (only files this app wrote are visible).
+            val mine = mutableListOf<Pair<Long, String>>()
+            contentResolver.query(
+                collection, arrayOf(media._ID, media.DISPLAY_NAME),
+                "${media.DISPLAY_NAME} LIKE ?", arrayOf("geburtstage-sicherung-%"),
+                "${media.DISPLAY_NAME} DESC"
+            )?.use { c ->
+                while (c.moveToNext()) mine.add(c.getLong(0) to c.getString(1))
+            }
+            val base = name.substringBeforeLast('.')
+            for ((id, n) in mine.filter { it.second.startsWith(base) }) {
+                contentResolver.delete(android.content.ContentUris.withAppendedId(collection, id), null, null)
+            }
+            val values = android.content.ContentValues().apply {
+                put(media.DISPLAY_NAME, name)
+                put(media.MIME_TYPE, "application/json")
+                put(media.RELATIVE_PATH, "Download/Geburtstage")
+                put(media.IS_PENDING, 1)
+            }
+            val uri = contentResolver.insert(collection, values) ?: return false
+            contentResolver.openOutputStream(uri)?.use { out ->
+                File(path).inputStream().use { it.copyTo(out) }
+            } ?: return false
+            values.clear()
+            values.put(media.IS_PENDING, 0)
+            contentResolver.update(uri, values, null, null)
+            val others = mine.filter { !it.second.startsWith(base) }
+            for ((id, _) in others.drop(maxOf(0, keep - 1))) {
+                contentResolver.delete(android.content.ContentUris.withAppendedId(collection, id), null, null)
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun openFirst(vararg intents: Intent): Boolean {

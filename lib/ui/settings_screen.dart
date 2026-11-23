@@ -41,6 +41,10 @@ class SettingsScreen extends StatelessWidget {
       );
       if (ok != true) return;
       final restored = await service.restore(data);
+      try {
+        await GreetingService.instance.rescheduleAll();
+        await GreetingService.instance.rescheduleReminders();
+      } catch (_) {}
       messenger.showSnackBar(
           SnackBar(content: Text('$restored Personen wiederhergestellt.')));
     } on FormatException catch (e) {
@@ -90,9 +94,10 @@ class SettingsScreen extends StatelessWidget {
         row('Kontakte übernehmen', 'Geburtstage aus dem Telefonbuch', 'Starten',
             () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const ImportScreen()))),
-        row('Sicherung erstellen', 'Als Datei teilen, z. B. in Google Drive',
+        const _AutoBackupRow(),
+        row('Sicherung teilen', 'Zusätzliche Kopie, z. B. in Google Drive',
             'Teilen', () => BackupService(db).shareBackup()),
-        row('Sicherung wiederherstellen', 'Ersetzt alle Daten in der App',
+        row('Sicherung wiederherstellen', 'Datei wählen; ersetzt alle Daten',
             'Wählen', () => _restore(context)),
         const SizedBox(height: Nl.s6),
         const SectionLabel('Glückwunsch-KI'),
@@ -468,6 +473,87 @@ class _ReminderSectionState extends State<_ReminderSection>
           ),
         ),
       ],
+    );
+  }
+}
+
+
+/// State of the automatic backup, with a button to run it now.
+class _AutoBackupRow extends StatefulWidget {
+  const _AutoBackupRow();
+
+  @override
+  State<_AutoBackupRow> createState() => _AutoBackupRowState();
+}
+
+class _AutoBackupRowState extends State<_AutoBackupRow> {
+  ({DateTime? at, String? where, String? error})? _last;
+  var _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final l = await BackupService.lastAuto();
+    if (mounted) setState(() => _last = l);
+  }
+
+  Future<void> _now() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    final ok = await BackupService(AppScope.of(context)).autoBackup(force: true);
+    await _load();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    messenger.showSnackBar(SnackBar(
+        content: Text(ok
+            ? 'Gesichert in ${_last?.where ?? 'Download/Geburtstage'}.'
+            : 'Sicherung fehlgeschlagen: ${_last?.error ?? 'keine Daten'}')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = _last;
+    final at = l?.at;
+    final failed = l?.error != null;
+    final when = at == null
+        ? 'Noch keine'
+        : 'Zuletzt ${at.day}.${at.month}. ${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: Nl.s3),
+      decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Nl.divider))),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Automatische Sicherung',
+                    style: Nl.body.copyWith(color: Nl.ink)),
+                Text(
+                  failed
+                      ? 'Fehlgeschlagen. $when'
+                      : '$when · Ordner Download/Geburtstage, bleibt auch nach dem Löschen der App',
+                  style: Nl.caption.copyWith(
+                      color: failed ? Nl.dangerInk : Nl.muted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: Nl.s3),
+          OutlinedButton(
+            onPressed: _busy ? null : _now,
+            style: OutlinedButton.styleFrom(
+                minimumSize: const Size(44, 44),
+                padding: const EdgeInsets.symmetric(horizontal: Nl.s4)),
+            child: Text(_busy ? '…' : 'Jetzt'),
+          ),
+        ],
+      ),
     );
   }
 }

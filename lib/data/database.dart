@@ -215,7 +215,8 @@ class AppDatabase extends _$AppDatabase {
 
   /// Replaces all data in one transaction (used by backup restore).
   Future<void> replaceAll(
-      List<PeopleCompanion> newPeople, List<NotesCompanion> newNotes) {
+      List<PeopleCompanion> newPeople, List<NotesCompanion> newNotes,
+      [List<GreetingsCompanion> newGreetings = const []]) {
     return transaction(() async {
       await delete(greetings).go();
       await delete(notes).go();
@@ -223,6 +224,7 @@ class AppDatabase extends _$AppDatabase {
       await batch((b) {
         b.insertAll(people, newPeople);
         b.insertAll(notes, newNotes);
+        b.insertAll(greetings, newGreetings);
       });
     });
   }

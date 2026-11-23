@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'data/database.dart';
 import 'data/greeting_service.dart';
+import 'data/backup_service.dart';
 import 'data/photo_sync.dart';
 import 'data/share_bridge.dart';
 import 'data/widget_sync.dart';
@@ -23,6 +24,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final db = AppDatabase();
   WidgetSync(db).start();
+  BackupService.watch(db);
   try {
     await GreetingService.init(db);
   } catch (e) {
@@ -80,19 +82,32 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   var _index = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     ShareBridge.incoming.addListener(_onShare);
     GreetingService.openPerson.addListener(_onReminder);
+    Future.delayed(const Duration(seconds: 6), _backup);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _onShare();
       _onReminder();
       _askForNotifications();
     });
+  }
+
+  // Leaving the app: secure what changed.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) _backup();
+  }
+
+  void _backup() {
+    if (!mounted) return;
+    BackupService(AppScope.of(context)).autoBackup();
   }
 
   /// Reminders need the permission; ask as soon as there is someone to
@@ -119,6 +134,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     ShareBridge.incoming.removeListener(_onShare);
     GreetingService.openPerson.removeListener(_onReminder);
     super.dispose();
