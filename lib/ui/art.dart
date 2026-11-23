@@ -8,6 +8,7 @@ import '../data/database.dart';
 import '../theme/tokens.dart';
 import 'ambient.dart';
 import 'format.dart';
+import 'poster.dart';
 
 /// Round avatar with a hairline ring in the person's colour:
 /// the contact photo, or initials on a faint tint.
@@ -47,10 +48,11 @@ class PersonAvatar extends StatelessWidget {
                 gaplessPlayback: true,
                 cacheWidth: (size * 3).round())
             : ColoredBox(
-                color: color.withValues(alpha: 0.12),
+                color: Poster.of(person).bg,
                 child: Center(
                   child: Text(_initials,
-                      style: Nl.display(size * 0.34, weight: 350, color: ink ?? color)),
+                      style: Nl.display(size * 0.36,
+                          weight: 650, color: Colors.white, spacing: 0.2)),
                 ),
               ),
       ),

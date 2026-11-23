@@ -367,4 +367,81 @@ void main() {
     await _shot(tester, '14_leer', const TodayScreen(), db: db);
     await _shot(tester, '15_import', const ImportScreen(), nav: -1, db: db);
   });
+
+  testWidgets('demnächst: mit Grusskarte', timeout: const Timeout(Duration(seconds: 90)), (tester) async {
+    late String path;
+    await tester.runAsync(() async {
+      // A stand-in for a generated card: cream paper, a big coral/teal 54.
+      final rec = ui.PictureRecorder();
+      final c = Canvas(rec);
+      const size = Size(800, 1000);
+      c.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFF3ECE0));
+      void word(String t, double fs, Color col, Offset at, {int w = 800}) {
+        final tp = TextPainter(
+            text: TextSpan(
+                text: t,
+                style: TextStyle(
+                    fontFamily: 'RobotoFlex',
+                    fontSize: fs,
+                    color: col,
+                    letterSpacing: -fs * 0.04,
+                    fontVariations: [ui.FontVariation('wght', w.toDouble())])),
+            textDirection: TextDirection.ltr)
+          ..layout();
+        tp.paint(c, at);
+      }
+
+      word('Alles Gute, Marc', 76, const Color(0xFFD85A30), const Offset(110, 70));
+      word('5', 620, const Color(0xFFE2553A), const Offset(60, 190), w: 900);
+      word('4', 620, const Color(0xFF0F6E56), const Offset(400, 190), w: 900);
+      final img = await rec.endRecording().toImage(800, 1000);
+      final png = await img.toByteData(format: ui.ImageByteFormat.png);
+      final f = File('build/tmp/card54.png')..createSync(recursive: true);
+      f.writeAsBytesSync(png!.buffer.asUint8List());
+      path = f.absolute.path;
+      final done = Completer<void>();
+      FileImage(File(path)).resolve(ImageConfiguration.empty).addListener(
+          ImageStreamListener((_, __) => done.complete(),
+              onError: (e, s) => done.completeError(e)));
+      await done.future;
+    });
+    final marc = _p(8, 'Marc', 'Hoppler', 6, 12, 1972, 0);
+    final g = Greeting(
+      id: 1,
+      personId: 8,
+      year: 2026,
+      draft: 'Marc, 54 Jahr …',
+      channel: Channels.whatsapp,
+      status: GreetingStatus.scheduled,
+      createdAt: DateTime(2026),
+      scheduledAt: DateTime(2026, 12, 6, 9, 33),
+      imagePath: path,
+    );
+    await _shot(
+      tester,
+      '21_mit_karte',
+      TodayView(
+        today: _today,
+        cards: upcomingFor([marc, ..._people], _today)
+          ..sort((a, b) => a.person.id == 8 ? -1 : b.person.id == 8 ? 1 : 0),
+        greetings: {'8-2026': g},
+        celebrate: false,
+      ),
+    );
+  });
+
+  testWidgets('demnächst: weitere Farben', (tester) async {
+    for (final (i, person) in [_people[1], _people[4]].indexed) {
+      await _shot(
+        tester,
+        '2${2 + i}_farbe',
+        TodayView(
+          today: _today,
+          cards: upcomingFor([person], _today),
+          greetings: const {},
+          celebrate: false,
+        ),
+      );
+    }
+  });
 }

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -17,6 +18,7 @@ import 'motion.dart';
 import 'person_edit_screen.dart';
 import 'person_screen.dart';
 import 'setup_banner.dart';
+import 'poster.dart';
 import 'widgets.dart';
 
 /// «Heute»: every upcoming birthday as a card, one way to browse:
@@ -146,8 +148,7 @@ class _TodayViewState extends State<TodayView>
     _maybeCelebrate(cards);
     final index = _page.round().clamp(0, cards.length - 1);
     final current = cards[index];
-    final ambient =
-        Nl.personColor(current.person.colorIndex, today: current.next.isToday);
+    final ambient = Poster.of(current.person).bg;
 
     return Stack(
       children: [
@@ -261,13 +262,29 @@ class _StripFace extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 Opacity(
-                  opacity: 0.6 + 0.4 * focus,
-                  child: PersonAvatar(
-                    person: u.person,
-                    size: 42,
-                    color: Color.lerp(quiet, own, focus)!,
-                    ink: Color.lerp(Nl.muted, own, focus),
-                  ),
+                  opacity: 0.55 + 0.45 * focus,
+                  child: greeting?.imagePath != null &&
+                          File(greeting!.imagePath!).existsSync()
+                      ? Container(
+                          width: 42,
+                          height: 42,
+                          padding: const EdgeInsets.all(2.5),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: Color.lerp(quiet, Colors.white, focus)!,
+                                width: 1.2),
+                          ),
+                          child: ClipOval(
+                            child: Image.file(File(greeting!.imagePath!),
+                                fit: BoxFit.cover, cacheWidth: 126),
+                          ),
+                        )
+                      : PersonAvatar(
+                          person: u.person,
+                          size: 42,
+                          color: Color.lerp(quiet, Colors.white, focus)!,
+                        ),
                 ),
                 // Planned greeting: a small green clock on the face.
                 if (greeting?.status == GreetingStatus.scheduled)
@@ -327,9 +344,15 @@ class _BirthdayCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = u.person;
     final n = u.next;
-    final color = Nl.personColor(p.colorIndex, today: n.isToday);
+    final poster = Poster.of(p);
     final hero = heroTextFor(u);
-    final hasPhoto = p.photo != null;
+    final cardImage =
+        greeting?.imagePath != null && File(greeting!.imagePath!).existsSync()
+            ? greeting!.imagePath
+            : null;
+    // A picture (the greeting card, else the contact photo) fills the card;
+    // without one the card is a poster in the person's colour.
+    final hasPicture = cardImage != null || p.photo != null;
     final shrink = 1 - 0.06 * delta.abs();
 
     // 3D: the card turns away around its vertical axis while swiping.
@@ -352,100 +375,77 @@ class _BirthdayCard extends StatelessWidget {
                     heroTag: 'card-ring-${p.id}'),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(32),
-                  child: DecoratedBox(
-                    position: DecorationPosition.foreground,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                          color: n.isToday
-                              ? Nl.accent.withValues(alpha: 0.45)
-                              : Colors.white.withValues(alpha: 0.07)),
-                      borderRadius: BorderRadius.circular(32),
-                    ),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (hasPhoto) ...[
-                          PersonBackdrop(
-                            person: p,
-                            color: color,
-                            parallax: delta,
-                            tilt: ambient.tilt,
-                          ),
-                          const DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                stops: [0.0, 0.42, 1.0],
-                                colors: [
-                                  Color(0x000E0C12),
-                                  Color(0x140E0C12),
-                                  Color(0xF50E0C12),
-                                ],
-                              ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (cardImage != null)
+                        Image.file(File(cardImage),
+                            fit: BoxFit.cover,
+                            alignment: Alignment.topCenter,
+                            gaplessPlayback: true)
+                      else if (p.photo != null)
+                        PersonBackdrop(
+                          person: p,
+                          color: poster.bg,
+                          parallax: delta,
+                          tilt: ambient.tilt,
+                        )
+                      else
+                        PosterBackdrop(
+                          poster: poster,
+                          figure: n.turning != null
+                              ? '${n.turning}'
+                              : hero.big.characters.first.toUpperCase(),
+                          parallax: delta,
+                          tilt: ambient.tilt,
+                        ),
+                      if (hasPicture)
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              stops: [0.0, 0.42, 0.72, 1.0],
+                              colors: [
+                                Color(0x00000000),
+                                Color(0x00000000),
+                                Color(0xB3000000),
+                                Color(0xF2000000),
+                              ],
                             ),
-                          ),
-                        ] else
-                          const DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [Color(0xFF1A1620), Nl.surface],
-                              ),
-                            ),
-                          ),
-                        if (n.isToday) const SparkField(),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                              Nl.s5, Nl.s5, Nl.s5, Nl.s5),
-                          child: Column(
-                            children: [
-                              Expanded(
-                                child: hasPhoto
-                                    ? const SizedBox.shrink()
-                                    : Center(
-                                        child: Hero(
-                                          tag: 'card-ring-${p.id}',
-                                          child: Halo(
-                                            color: color,
-                                            radius: _avatar / 2,
-                                            clock: ambient.clock,
-                                            tilt: ambient.tilt,
-                                            child: PersonAvatar(
-                                              person: p,
-                                              size: _avatar,
-                                              color: color,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                              ),
-                              _CardText(
-                                key: ValueKey('card-${p.id}-$active'),
-                                label: hero.lead.toUpperCase(),
-                                name: hero.big,
-                                surname: surnameFor(p),
-                                caption: hero.caption,
-                                color: color,
-                                animate: active,
-                              ),
-                              const SizedBox(height: Nl.s5),
-                              _GreetingButton(
-                                greeting: greeting,
-                                today: n.isToday,
-                                onTap: () {
-                                  HapticFeedback.selectionClick();
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                      builder: (_) =>
-                                          GreetingEditor(person: p)));
-                                },
-                              ),
-                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      if (n.isToday) const SparkField(),
+                      Padding(
+                        padding: const EdgeInsets.all(Nl.s5),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Spacer(),
+                            _CardText(
+                              key: ValueKey('card-${p.id}-$active'),
+                              label: hero.lead.toUpperCase(),
+                              name: hero.big,
+                              surname: surnameFor(p),
+                              caption: hero.caption,
+                              color: const Color(0xFFFFE9A8),
+                              animate: active,
+                            ),
+                            const SizedBox(height: Nl.s5),
+                            _GreetingButton(
+                              greeting: greeting,
+                              today: n.isToday,
+                              ink: hasPicture ? null : poster.deep,
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => GreetingEditor(person: p)));
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -460,9 +460,13 @@ class _BirthdayCard extends StatelessWidget {
 /// The one action on a card. Its label carries the greeting status.
 class _GreetingButton extends StatelessWidget {
   const _GreetingButton(
-      {required this.greeting, required this.today, required this.onTap});
+      {required this.greeting, required this.today, required this.onTap, this.ink});
   final Greeting? greeting;
   final bool today;
+
+  /// On a poster: the dark shade for text on a white button. Null on a
+  /// picture, where the button is frosted glass.
+  final Color? ink;
   final VoidCallback onTap;
 
   @override
@@ -486,35 +490,39 @@ class _GreetingButton extends StatelessWidget {
     };
     final card = g?.imagePath != null && g?.status != GreetingStatus.sent;
     final label = card ? '$text · mit Karte' : text;
-    final filled = today && !hasDraft;
+    final fg = ink ?? Colors.white;
     return PressScale(
       child: GestureDetector(
         onTap: onTap,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(26),
+          borderRadius: BorderRadius.circular(28),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Container(
-              height: 52,
+              height: 56,
               decoration: BoxDecoration(
-                color: filled
-                    ? Nl.accent
-                    : Colors.white.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(26),
-                border: filled
+                color: ink != null
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(28),
+                border: ink != null
                     ? null
-                    : Border.all(color: Colors.white.withValues(alpha: 0.10)),
+                    : Border.all(color: Colors.white.withValues(alpha: 0.28)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(icon, size: 18, color: tint),
+                  Icon(icon, size: 19, color: fg),
                   const SizedBox(width: Nl.s2),
                   Flexible(
                     child: Text(label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Nl.button.copyWith(color: tint)),
+                        style: Nl.button.copyWith(
+                            color: fg,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            fontVariations: const [FontVariation('wght', 600)])),
                   ),
                 ],
               ),
@@ -597,11 +605,11 @@ class _CardTextState extends State<_CardText>
 
   @override
   Widget build(BuildContext context) {
+    const white = Colors.white;
     final nameText = Text(
       widget.name,
       maxLines: 1,
-      textAlign: TextAlign.center,
-      style: Nl.display(84, weight: 300, color: Nl.ink, height: 1.08, spacing: -1.5),
+      style: Nl.display(76, weight: 720, color: white, height: 1.02, spacing: -2.4),
     );
     return AnimatedBuilder(
       animation: _c,
@@ -613,20 +621,26 @@ class _CardTextState extends State<_CardText>
         final sweep = ((t - 0.5) / 0.5).clamp(0.0, 1.0);
         return Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Opacity(
               opacity: label,
               child: Text(widget.label,
                   style: Nl.label.copyWith(
-                      color: widget.color, fontSize: 12.5, letterSpacing: 2.6)),
+                      color: white.withValues(alpha: 0.9),
+                      fontSize: 13,
+                      letterSpacing: 2.4,
+                      fontWeight: FontWeight.w700,
+                      fontVariations: const [FontVariation('wght', 700)])),
             ),
-            const SizedBox(height: Nl.s2),
+            const SizedBox(height: Nl.s1),
             Transform.translate(
               offset: Offset(0, 16 * (1 - rise)),
               child: Opacity(
                 opacity: rise,
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
                   child: sweep <= 0 || sweep >= 1
                       ? nameText
                       : ShaderMask(
@@ -656,15 +670,16 @@ class _CardTextState extends State<_CardText>
                   child: Text(widget.surname!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Nl.display(26, weight: 300, color: Nl.inkSoft, height: 1.2)),
+                      style: Nl.display(26,
+                          weight: 450, color: white.withValues(alpha: 0.92), height: 1.2)),
                 ),
               ),
             const SizedBox(height: Nl.s3),
             Opacity(
               opacity: caption,
               child: Text(widget.caption,
-                  textAlign: TextAlign.center,
-                  style: Nl.bodySmall.copyWith(color: Nl.inkSoft, fontSize: 15)),
+                  style: Nl.bodySmall.copyWith(
+                      color: white.withValues(alpha: 0.88), fontSize: 15.5)),
             ),
           ],
         );
