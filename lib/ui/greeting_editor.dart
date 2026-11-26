@@ -541,7 +541,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
                 const SizedBox(width: Nl.s2),
                 Expanded(
                   child: _Segment(
-                    label: _image != null ? 'Karte ✓' : 'Karte',
+                    label: _image != null ? 'Karte (1)' : 'Karte',
                     selected: _tab == 1,
                     onTap: () {
                       FocusManager.instance.primaryFocus?.unfocus();
