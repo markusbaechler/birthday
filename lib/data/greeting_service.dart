@@ -139,6 +139,39 @@ class GreetingService {
     }
   }
 
+  /// The greeting that was handed to the chat app and awaits «sent?».
+  Future<(Greeting, Person)?> awaitingConfirmation() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = prefs.getInt('confirm_sent');
+    if (id == null) return null;
+    final g = await db.greetingById(id);
+    if (g == null || g.status == GreetingStatus.sent) {
+      await prefs.remove('confirm_sent');
+      return null;
+    }
+    final p = (await db.allPeople()).where((x) => x.id == g.personId).firstOrNull;
+    if (p == null) {
+      await prefs.remove('confirm_sent');
+      return null;
+    }
+    return (g, p);
+  }
+
+  /// Answers «sent?»: yes marks it sent and silences its notification.
+  Future<void> confirmSent(Greeting g, {required bool sent}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('confirm_sent');
+    if (!sent) return;
+    await cancel(g.id);
+    await db.saveGreeting(
+      personId: g.personId,
+      year: g.year,
+      channel: g.channel,
+      sentText: Value(g.draft ?? ''),
+      status: const Value(GreetingStatus.sent),
+    );
+  }
+
   // ---------------------------------------------------------- Reminders
 
   Timer? _debounce;
@@ -323,14 +356,9 @@ class GreetingService {
       } catch (_) {}
     }
     if (ok) {
-      await cancel(g.id);
-      await db.saveGreeting(
-        personId: g.personId,
-        year: g.year,
-        channel: g.channel,
-        sentText: Value(text),
-        status: const Value(GreetingStatus.sent),
-      );
+      // WhatsApp is open now; whether it was really sent is asked on return.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('confirm_sent', g.id);
     }
     return ok;
   }
@@ -388,4 +416,22 @@ class ReminderSettings {
     await p.setInt('rem_day_h', dayHour);
     await p.setInt('rem_day_m', dayMinute);
   }
+}
+
+/// The time of day greetings are planned for unless chosen otherwise.
+class DefaultTime {
+  const DefaultTime(this.hour, this.minute);
+  final int hour;
+  final int minute;
+
+  static DefaultTime read(SharedPreferences p) =>
+      DefaultTime(p.getInt('default_h') ?? 9, p.getInt('default_m') ?? 0);
+
+  Future<void> write(SharedPreferences p) async {
+    await p.setInt('default_h', hour);
+    await p.setInt('default_m', minute);
+  }
+
+  String get label =>
+      '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 }

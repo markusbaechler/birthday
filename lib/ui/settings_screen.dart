@@ -251,6 +251,7 @@ class _ReminderSection extends StatefulWidget {
 class _ReminderSectionState extends State<_ReminderSection>
     with WidgetsBindingObserver {
   var _s = const ReminderSettings();
+  var _std = const DefaultTime(9, 0);
   bool? _notifications;
   bool? _exact;
   bool? _battery;
@@ -278,6 +279,7 @@ class _ReminderSectionState extends State<_ReminderSection>
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final settings = ReminderSettings.read(prefs);
+    final std = DefaultTime.read(prefs);
     bool? n, e, b;
     int? pending;
     try {
@@ -290,6 +292,7 @@ class _ReminderSectionState extends State<_ReminderSection>
     if (!mounted) return;
     setState(() {
       _s = settings;
+      _std = std;
       _notifications = n;
       _exact = e;
       _battery = b;
@@ -336,7 +339,7 @@ class _ReminderSectionState extends State<_ReminderSection>
       '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
 
   Widget _timeRow(String title, String sub, bool on, String time,
-          ValueChanged<bool> onToggle, VoidCallback onTime) =>
+          ValueChanged<bool>? onToggle, VoidCallback onTime) =>
       Container(
         padding: const EdgeInsets.symmetric(vertical: Nl.s2),
         decoration: const BoxDecoration(
@@ -358,7 +361,10 @@ class _ReminderSectionState extends State<_ReminderSection>
                   style: Nl.display(22,
                       weight: 300, color: on ? Nl.accent : Nl.borderControl)),
             ),
-            Switch(value: on, onChanged: onToggle),
+            if (onToggle != null)
+              Switch(value: on, onChanged: onToggle)
+            else
+              const SizedBox(width: Nl.s2),
           ],
         ),
       );
@@ -426,6 +432,22 @@ class _ReminderSectionState extends State<_ReminderSection>
               dayHour: _s.dayHour,
               dayMinute: _s.dayMinute)),
           () => _pick(false),
+        ),
+        _timeRow(
+          'Standardzeit für Grüsse',
+          'Vorschlag beim Planen, pro Gruss änderbar',
+          true,
+          _std.label,
+          null,
+          () async {
+            final t = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay(hour: _std.hour, minute: _std.minute));
+            if (t == null) return;
+            final next = DefaultTime(t.hour, t.minute);
+            await next.write(await SharedPreferences.getInstance());
+            if (mounted) setState(() => _std = next);
+          },
         ),
         const SizedBox(height: Nl.s4),
         NlCard(

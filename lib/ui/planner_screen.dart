@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/ai_service.dart';
 import '../data/database.dart';
@@ -67,9 +68,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final svc = GreetingService.instance;
     await svc.requestPermissions();
+    final std = DefaultTime.read(await SharedPreferences.getInstance());
     for (final (u, g) in drafts) {
       final d = u.next.date;
-      var at = DateTime(d.year, d.month, d.day, 9, 0);
+      var at = DateTime(d.year, d.month, d.day, std.hour, std.minute);
       final now = DateTime.now();
       if (at.isBefore(now)) at = now.add(const Duration(minutes: 10));
       final saved = await db.saveGreeting(
@@ -83,7 +85,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
     }
     HapticFeedback.mediumImpact();
     messenger.showSnackBar(SnackBar(
-        content: Text('${drafts.length} Grüsse geplant, jeweils um 09:00.')));
+        content: Text('${drafts.length} Grüsse geplant, jeweils um ${std.label}.')));
   }
 
   @override
@@ -163,8 +165,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
                   OutlinedButton(
                     onPressed: () => _planAll(draftRows),
                     child: Text(draftRows.length == 1
-                        ? '1 Entwurf planen (09:00)'
-                        : '${draftRows.length} Entwürfe planen (09:00)'),
+                        ? '1 Entwurf planen'
+                        : '${draftRows.length} Entwürfe planen'),
                   ),
                 ],
               ],
@@ -226,7 +228,7 @@ class _PlannedCard extends StatelessWidget {
               builder: (_) => GreetingEditor(person: person)));
         },
         child: Container(
-          padding: const EdgeInsets.all(Nl.s4),
+          padding: const EdgeInsets.fromLTRB(Nl.s4, Nl.s4, Nl.s1, Nl.s4),
           decoration: BoxDecoration(
             color: Nl.surface,
             borderRadius: BorderRadius.circular(Nl.rL),
@@ -290,6 +292,47 @@ class _PlannedCard extends StatelessWidget {
                       width: 56, height: 70, fit: BoxFit.cover, cacheWidth: 168),
                 ),
               ],
+              PopupMenuButton<String>(
+                tooltip: 'Aktionen',
+                padding: EdgeInsets.zero,
+                color: Nl.surfaceRaised,
+                icon: const Icon(Icons.more_vert, color: Nl.muted),
+                onSelected: (v) async {
+                  final db = AppScope.of(context);
+                  final svc = GreetingService.instance;
+                  if (v == 'send') {
+                    await svc.send(g, person);
+                  } else if (v == 'unplan') {
+                    await svc.cancel(g.id);
+                    await db.saveGreeting(
+                      personId: g.personId,
+                      year: g.year,
+                      channel: g.channel,
+                      status: const Value(GreetingStatus.draft),
+                      scheduledAt: const Value(null),
+                    );
+                  } else if (v == 'time' && at != null) {
+                    final t = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay(hour: at.hour, minute: at.minute));
+                    if (t == null) return;
+                    final next = DateTime(at.year, at.month, at.day, t.hour, t.minute);
+                    if (next.isBefore(DateTime.now())) return;
+                    final saved = await db.saveGreeting(
+                      personId: g.personId,
+                      year: g.year,
+                      channel: g.channel,
+                      scheduledAt: Value(next),
+                    );
+                    await svc.schedule(saved, person);
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'send', child: Text('Jetzt senden')),
+                  PopupMenuItem(value: 'time', child: Text('Zeit ändern')),
+                  PopupMenuItem(value: 'unplan', child: Text('Planung aufheben')),
+                ],
+              ),
             ],
           ),
         ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' show ImageFilter;
 
@@ -60,9 +61,12 @@ class _GreetingEditorState extends State<GreetingEditor> {
   var _style = CardStyle.auto;
   String? _error;
   var _time = const TimeOfDay(hour: 9, minute: 0);
+  var _tab = 0;
+  Timer? _autosave;
+  late AppDatabase _db;
 
   Person get p => widget.person;
-  AppDatabase get db => AppScope.of(context);
+  AppDatabase get db => _db;
   String? get _image => _greeting?.imagePath;
   String? get _prompt => _greeting?.imagePrompt;
   bool get _hasContent => _text.text.trim().isNotEmpty || _image != null;
@@ -74,6 +78,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _db = AppScope.of(context);
     if (!_loaded) {
       _loaded = true;
       _load();
@@ -84,6 +89,9 @@ class _GreetingEditorState extends State<GreetingEditor> {
     var g = await db.greetingFor(p.id, _next.date.year);
     final prefs = await SharedPreferences.getInstance();
     _ai = ImageAi.byName(prefs.getString('image_ai'));
+    final std = DefaultTime.read(prefs);
+    _time = TimeOfDay(hour: std.hour, minute: std.minute);
+    if (widget.incoming?.imagePath != null) _tab = 1;
     final inc = widget.incoming;
     // A share with an image often carries only a link as text: ignore it.
     final incText = inc?.text != null &&
@@ -125,6 +133,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
 
   @override
   void dispose() {
+    _autosave?.cancel();
     _text.dispose();
     super.dispose();
   }
@@ -212,6 +221,40 @@ class _GreetingEditorState extends State<GreetingEditor> {
       _selected = -1;
     });
     await _saveDraft();
+  }
+
+  void _clear() {
+    final before = _text.text;
+    final selected = _selected;
+    setState(() {
+      _text.clear();
+      _selected = -1;
+    });
+    _saveDraft();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: const Text('Text geleert.'),
+        action: SnackBarAction(
+          label: 'Rückgängig',
+          onPressed: () {
+            if (!mounted) return;
+            setState(() {
+              _text.text = before;
+              _selected = selected;
+            });
+            _saveDraft();
+          },
+        ),
+      ));
+  }
+
+  /// Saves shortly after the last keystroke, so nothing typed is lost,
+  /// however the screen is left.
+  void _typed() {
+    setState(() => _selected = -1);
+    _autosave?.cancel();
+    _autosave = Timer(const Duration(milliseconds: 700), _saveDraft);
   }
 
   Future<void> _copy() async {
@@ -313,6 +356,9 @@ class _GreetingEditorState extends State<GreetingEditor> {
     if (prompt == null) return;
     await Clipboard.setData(ClipboardData(text: prompt));
     HapticFeedback.selectionClick();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('last_ai_person', p.id);
+    await prefs.setInt('last_ai_at', DateTime.now().millisecondsSinceEpoch);
     var ok = await ShareBridge.sendTextToApp(_ai.package, prompt);
     if (!ok) {
       try {
@@ -397,6 +443,13 @@ class _GreetingEditorState extends State<GreetingEditor> {
     if (mounted) setState(() => _greeting = updated);
   }
 
+  Future<void> _pickTime() async {
+    final t = await showTimePicker(context: context, initialTime: _time);
+    if (t == null) return;
+    setState(() => _time = t);
+    if (_greeting?.status == GreetingStatus.scheduled) await _plan();
+  }
+
   Future<void> _sendNow() async {
     await _saveDraft();
     final g = _greeting;
@@ -416,10 +469,21 @@ class _GreetingEditorState extends State<GreetingEditor> {
     final scheduled = _greeting?.status == GreetingStatus.scheduled;
     final sent = _greeting?.status == GreetingStatus.sent;
     final hasText = _text.text.trim().isNotEmpty;
-    return Scaffold(
+    return PopScope(
+      // Also on the system back gesture: keep what was typed.
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          _autosave?.cancel();
+          _saveDraft();
+        }
+      },
+      child: Scaffold(
       body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s4, Nl.s5, Nl.s6),
+          padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s4, Nl.s5, Nl.s5),
           children: [
             Row(children: [
               RoundIconButton(
@@ -452,7 +516,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
                 ),
               ),
             ]),
-            const SizedBox(height: Nl.s6),
+            const SizedBox(height: Nl.s5),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: Nl.s4),
@@ -461,9 +525,30 @@ class _GreetingEditorState extends State<GreetingEditor> {
                         style: Nl.body.copyWith(color: Nl.dangerInk))),
               ),
 
-            // ---------------------------------------------------- Text
-            const SectionLabel('Text'),
-            const SizedBox(height: Nl.s3),
+            Row(
+              children: [
+                Expanded(
+                  child: _Segment(
+                    label: 'Text',
+                    selected: _tab == 0,
+                    onTap: () => setState(() => _tab = 0),
+                  ),
+                ),
+                const SizedBox(width: Nl.s2),
+                Expanded(
+                  child: _Segment(
+                    label: _image != null ? 'Karte ✓' : 'Karte',
+                    selected: _tab == 1,
+                    onTap: () {
+                      FocusManager.instance.primaryFocus?.unfocus();
+                      setState(() => _tab = 1);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: Nl.s4),
+            if (_tab == 0) ...[
             if (_variants.length > 1) ...[
               SizedBox(
                 height: 40,
@@ -529,7 +614,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
                               focusedBorder: InputBorder.none,
                               hintText: 'Selbst schreiben, einfügen oder schreiben lassen …',
                             ),
-                            onChanged: (_) => setState(() => _selected = -1),
+                            onChanged: (_) => _typed(),
                             onTapOutside: (_) {
                               FocusManager.instance.primaryFocus?.unfocus();
                               _saveDraft();
@@ -552,13 +637,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
                         IconButton(
                           tooltip: 'Leeren',
                           icon: const Icon(Icons.close, size: 18, color: Nl.muted),
-                          onPressed: () {
-                            setState(() {
-                              _text.clear();
-                              _selected = -1;
-                            });
-                            _saveDraft();
-                          },
+                          onPressed: _clear,
                         ),
                     ],
                   ),
@@ -596,10 +675,8 @@ class _GreetingEditorState extends State<GreetingEditor> {
               ],
             ),
 
-            // ---------------------------------------------------- Card
-            const SizedBox(height: Nl.s6),
-            const SectionLabel('Karte'),
-            const SizedBox(height: Nl.s3),
+            ],
+            if (_tab == 1) ...[
             if (_image != null) ...[
               _CardImage(
                 path: _image!,
@@ -742,59 +819,136 @@ class _GreetingEditorState extends State<GreetingEditor> {
               ),
             ),
 
-            // ---------------------------------------------------- Plan
-            const SizedBox(height: Nl.s6),
-            const SectionLabel('Senden'),
-            const SizedBox(height: Nl.s3),
-            NlCard(
-              child: Row(
+            ],
+          ],
+        ),
+            ),
+            _SendBar(
+              when: _when,
+              time: _time.format(context),
+              scheduled: scheduled,
+              sent: sent,
+              enabled: !_busy && _hasContent,
+              channel: Channels.label(p.channel),
+              withCard: _image != null,
+              onTime: _pickTime,
+              onPlan: _plan,
+              onUnplan: _unplan,
+              onSend: _sendNow,
+            ),
+          ],
+        ),
+      ),
+      ),
+    );
+  }
+}
+
+/// Always in reach at the bottom: when the greeting goes out, plan it,
+/// send it now.
+class _SendBar extends StatelessWidget {
+  const _SendBar({
+    required this.when,
+    required this.time,
+    required this.scheduled,
+    required this.sent,
+    required this.enabled,
+    required this.channel,
+    required this.withCard,
+    required this.onTime,
+    required this.onPlan,
+    required this.onUnplan,
+    required this.onSend,
+  });
+
+  final DateTime when;
+  final String time;
+  final bool scheduled;
+  final bool sent;
+  final bool enabled;
+  final String channel;
+  final bool withCard;
+  final VoidCallback onTime;
+  final VoidCallback onPlan;
+  final VoidCallback onUnplan;
+  final VoidCallback onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = sent
+        ? 'Gesendet'
+        : scheduled
+            ? 'Geplant'
+            : 'Geht raus am';
+    return Container(
+      padding: const EdgeInsets.fromLTRB(Nl.s5, Nl.s3, Nl.s4, Nl.s3),
+      decoration: const BoxDecoration(
+        color: Nl.surface,
+        border: Border(top: BorderSide(color: Nl.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: sent ? null : onTime,
+              borderRadius: BorderRadius.circular(Nl.rS),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(formatLong(_when), style: Nl.body.copyWith(color: Nl.ink)),
-                        Text(
-                          sent
-                              ? 'Gesendet'
-                              : scheduled
-                                  ? 'Geplant: Erinnerung mit fertigem Gruss'
-                                  : 'Zu dieser Zeit kommt der fertige Gruss',
-                          style: Nl.caption.copyWith(
-                              color: scheduled ? Nl.personGreen : Nl.muted),
-                        ),
+                  Text(status,
+                      style: Nl.caption.copyWith(
+                          color: scheduled ? Nl.personGreen : Nl.muted)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text('${formatShort(when)} · $time',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Nl.body.copyWith(color: Nl.ink)),
+                      ),
+                      if (!sent) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.expand_more, size: 18, color: Nl.muted),
                       ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      final t = await showTimePicker(context: context, initialTime: _time);
-                      if (t == null) return;
-                      setState(() => _time = t);
-                      if (scheduled) await _plan();
-                    },
-                    child: Text(_time.format(context),
-                        style: Nl.display(26, weight: 300, color: color)),
+                    ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: Nl.s4),
-            if (scheduled)
-              OutlinedButton(onPressed: _unplan, child: const Text('Planung aufheben'))
-            else
-              FilledButton(
-                onPressed: _busy || !_hasContent ? null : _plan,
-                child: Text('Planen für ${_time.format(context)}'),
-              ),
-            const SizedBox(height: Nl.s2),
-            TextButton(
-              onPressed: _busy || !_hasContent ? null : _sendNow,
-              child: Text(
-                  'Jetzt senden per ${Channels.label(p.channel)}${_image != null ? ' mit Karte' : ''}'),
+          ),
+          const SizedBox(width: Nl.s2),
+          if (scheduled)
+            OutlinedButton(
+              onPressed: onUnplan,
+              style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  padding: const EdgeInsets.symmetric(horizontal: Nl.s4)),
+              child: const Text('Aufheben'),
+            )
+          else if (!sent)
+            FilledButton(
+              onPressed: enabled ? onPlan : null,
+              style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  padding: const EdgeInsets.symmetric(horizontal: Nl.s5)),
+              child: const Text('Planen'),
             ),
-          ],
-        ),
+          const SizedBox(width: Nl.s2),
+          Tooltip(
+            message:
+                'Jetzt senden per $channel${withCard ? ' mit Karte' : ''}',
+            child: IconButton.filledTonal(
+              onPressed: enabled ? onSend : null,
+              style: IconButton.styleFrom(
+                  minimumSize: const Size(48, 48),
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  foregroundColor: Nl.ink),
+              icon: const Icon(Icons.send_outlined, size: 20),
+            ),
+          ),
+        ],
       ),
     );
   }

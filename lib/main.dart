@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'data/database.dart';
@@ -11,6 +12,7 @@ import 'data/photo_sync.dart';
 import 'data/share_bridge.dart';
 import 'data/widget_sync.dart';
 import 'theme/app_theme.dart';
+import 'theme/tokens.dart';
 import 'ui/calendar_screen.dart';
 import 'ui/format.dart';
 import 'ui/greeting_editor.dart';
@@ -98,6 +100,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       _onShare();
       _onReminder();
       _askForNotifications();
+      _askIfSent();
     });
   }
 
@@ -112,6 +115,58 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) _backup();
+    if (state == AppLifecycleState.resumed) _askIfSent();
+  }
+
+  var _asking = false;
+
+  /// Back from WhatsApp: only now we can know whether the greeting went out.
+  Future<void> _askIfSent() async {
+    if (_asking || !mounted) return;
+    final (Greeting, Person)? open;
+    try {
+      open = await GreetingService.instance.awaitingConfirmation();
+    } catch (_) {
+      return;
+    }
+    if (open == null || !mounted) return;
+    final (g, person) = open;
+    _asking = true;
+    final sent = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Nl.surfaceRaised,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(Nl.s5, 0, Nl.s5, Nl.s5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Gruss an ${displayName(person)} gesendet?',
+                  style: Nl.title),
+              const SizedBox(height: Nl.s2),
+              const Text(
+                  'Bei Nein bleibt der Gruss, wie er war, und du kannst es nochmals versuchen.',
+                  style: Nl.bodySmall),
+              const SizedBox(height: Nl.s5),
+              FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Ja, gesendet')),
+              const SizedBox(height: Nl.s2),
+              OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Nein, noch nicht')),
+            ],
+          ),
+        ),
+      ),
+    );
+    _asking = false;
+    // Closing the sheet without an answer asks again next time.
+    if (sent == null) return;
+    await GreetingService.instance.confirmSent(g, sent: sent);
+    if (sent) HapticFeedback.mediumImpact();
   }
 
   void _backup() {
@@ -164,13 +219,24 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           content: Text('Erst Personen erfassen, dann klappt das Teilen.')));
       return;
     }
+    // The person a card prompt was last opened for is most likely meant.
+    Person? suggested;
+    final prefs = await SharedPreferences.getInstance();
+    final lastAt = prefs.getInt('last_ai_at') ?? 0;
+    if (DateTime.now().millisecondsSinceEpoch - lastAt < 48 * 3600 * 1000) {
+      final id = prefs.getInt('last_ai_person');
+      suggested = people.where((p) => p.id == id).firstOrNull;
+    }
+    if (!mounted) return;
     final chosen = await showModalBottomSheet<Person>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => SharePersonSheet(
-          cards: upcomingFor(people, DateTime.now()), shared: shared),
+          cards: upcomingFor(people, DateTime.now()),
+          shared: shared,
+          suggested: suggested),
     );
     if (chosen == null || !mounted) return;
     // One editor at a time: a share replaces whatever was open.

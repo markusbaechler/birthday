@@ -13,8 +13,12 @@ import 'widgets.dart';
 /// «Für wen ist das?» after another app shared text or an image.
 /// The next birthdays come first.
 class SharePersonSheet extends StatelessWidget {
-  const SharePersonSheet({super.key, required this.cards, required this.shared});
+  const SharePersonSheet(
+      {super.key, required this.cards, required this.shared, this.suggested});
   final List<Upcoming> cards;
+
+  /// Shown first: the person a card prompt was last opened for.
+  final Person? suggested;
   final SharedIn shared;
 
   @override
@@ -48,7 +52,18 @@ class SharePersonSheet extends StatelessWidget {
             const SizedBox(height: Nl.s4),
             _Preview(shared: shared),
             const SizedBox(height: Nl.s5),
-            const SectionLabel('Nächste Geburtstage'),
+            if (suggested case final sp?) ...[
+              FilledButton.icon(
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.of(context).pop(sp);
+                },
+                icon: const Icon(Icons.check, size: 18),
+                label: Text('Für ${fullName(sp)}'),
+              ),
+              const SizedBox(height: Nl.s5),
+            ],
+            SectionLabel(suggested == null ? 'Nächste Geburtstage' : 'Oder jemand anderes'),
             const SizedBox(height: Nl.s2),
             for (final u in cards)
               InkWell(
