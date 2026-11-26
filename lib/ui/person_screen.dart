@@ -70,7 +70,7 @@ class PersonScreen extends StatelessWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          if (p.photo != null) ...[
+                          if (hasLargePhoto(p)) ...[
                             PersonBackdrop(person: p, color: poster.bg),
                             const DecoratedBox(
                               decoration: BoxDecoration(
@@ -97,7 +97,7 @@ class PersonScreen extends StatelessWidget {
                                     : hero.big.characters.first.toUpperCase(),
                               ),
                             ),
-                          if (p.photo == null)
+                          if (!hasLargePhoto(p))
                             Positioned(
                                 top: 0,
                                 left: 0,
@@ -105,6 +105,13 @@ class PersonScreen extends StatelessWidget {
                                 height: top + 1,
                                 child: ColoredBox(color: poster.bg)),
                           if (n.isToday) const SparkField(),
+                          if (!hasLargePhoto(p) && p.photo != null)
+                            Positioned(
+                              left: Nl.s5,
+                              top: top + 84,
+                              child: PersonAvatar(
+                                  person: p, size: 88, color: Colors.white),
+                            ),
                           Positioned(
                             top: top + Nl.s3,
                             left: Nl.s4,

@@ -76,6 +76,7 @@ ThemeData buildTheme() {
     snackBarTheme: const SnackBarThemeData(
       backgroundColor: Nl.surfaceRaised,
       contentTextStyle: Nl.bodySmall,
+      actionTextColor: Nl.ink,
       behavior: SnackBarBehavior.floating,
     ),
     dialogTheme: const DialogThemeData(backgroundColor: Nl.surfaceRaised),

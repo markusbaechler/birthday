@@ -30,6 +30,10 @@ class Poster {
   static Poster of(Person p) => all[p.id % all.length];
 }
 
+/// Contact photos are often tiny thumbnails that turn to mush when blown up
+/// to a full card. Only a photo with enough detail may fill a card.
+bool hasLargePhoto(Person p) => (p.photo?.length ?? 0) >= 45000;
+
 /// The poster itself: colour, a soft light that follows the device tilt and
 /// a giant [figure] (the age, or the first letter) cropped by the edge.
 class PosterBackdrop extends StatelessWidget {

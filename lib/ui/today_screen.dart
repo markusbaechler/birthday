@@ -352,7 +352,7 @@ class _BirthdayCard extends StatelessWidget {
             : null;
     // A picture (the greeting card, else the contact photo) fills the card;
     // without one the card is a poster in the person's colour.
-    final hasPicture = cardImage != null || p.photo != null;
+    final hasPicture = cardImage != null || hasLargePhoto(p);
     final shrink = 1 - 0.06 * delta.abs();
 
     // 3D: the card turns away around its vertical axis while swiping.
@@ -383,7 +383,7 @@ class _BirthdayCard extends StatelessWidget {
                             fit: BoxFit.cover,
                             alignment: Alignment.topCenter,
                             gaplessPlayback: true)
-                      else if (p.photo != null)
+                      else if (hasLargePhoto(p))
                         PersonBackdrop(
                           person: p,
                           color: poster.bg,
@@ -416,6 +416,14 @@ class _BirthdayCard extends StatelessWidget {
                           ),
                         ),
                       if (n.isToday) const SparkField(),
+                      // A small photo: as a portrait on the poster.
+                      if (!hasPicture && p.photo != null)
+                        Positioned(
+                          left: Nl.s5,
+                          top: Nl.s5,
+                          child: PersonAvatar(
+                              person: p, size: 84, color: Colors.white),
+                        ),
                       Padding(
                         padding: const EdgeInsets.all(Nl.s5),
                         child: Column(

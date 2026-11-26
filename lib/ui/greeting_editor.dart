@@ -68,6 +68,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
   late var _tab = widget.initialTab;
   Timer? _autosave;
   late AppDatabase _db;
+  ScaffoldMessengerState? _messenger;
 
   Person get p => widget.person;
   AppDatabase get db => _db;
@@ -83,6 +84,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _db = AppScope.of(context);
+    _messenger = ScaffoldMessenger.of(context);
     if (!_loaded) {
       _loaded = true;
       _load();
@@ -137,6 +139,8 @@ class _GreetingEditorState extends State<GreetingEditor> {
 
   @override
   void dispose() {
+    // «Rückgängig» only makes sense while this editor is open.
+    _messenger?.hideCurrentSnackBar();
     _autosave?.cancel();
     _text.dispose();
     super.dispose();
@@ -238,6 +242,9 @@ class _GreetingEditorState extends State<GreetingEditor> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
+        // With an action a snack bar would otherwise stay until tapped.
+        persist: false,
+        duration: const Duration(seconds: 5),
         content: const Text('Text geleert.'),
         action: SnackBarAction(
           label: 'Rückgängig',

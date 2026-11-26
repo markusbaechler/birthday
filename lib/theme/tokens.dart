@@ -16,8 +16,9 @@ abstract final class Nl {
   static const inkBody = Color(0xFFE4DEEC);
   static const inkSoft = Color(0xFFCFC8DA);
   static const muted = Color(0xFF9C95A8);
-  static const accent = Color(0xFFE9A7C0);
-  static const onAccent = Color(0xFF1E0F16);
+  // Neutral on purpose: colour belongs to the people (see Poster).
+  static const accent = Color(0xFFF3EEE6);
+  static const onAccent = Color(0xFF17141C);
   static const personBlue = Color(0xFF8FB4E8);
   static const personGreen = Color(0xFF8FD0AA);
   static const personAmber = Color(0xFFE3C27A);
