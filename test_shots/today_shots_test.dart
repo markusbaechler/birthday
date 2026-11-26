@@ -260,15 +260,15 @@ void main() {
     final (db, person) = await seed(tester);
     await _shot(tester, '04_gruss_editor',
         GreetingEditor(person: person, autoGenerate: false),
-        nav: -1, db: db, height: 4400);
+        nav: -1, db: db);
     await db.close();
   });
 
   testWidgets('gruss: Editor mit Bild', timeout: const Timeout(Duration(seconds: 90)), (tester) async {
     final (db, person) = await seed(tester, withImage: true);
     await _shot(tester, '05_gruss_mit_bild',
-        GreetingEditor(person: person, autoGenerate: false),
-        nav: -1, db: db, height: 4400);
+        GreetingEditor(person: person, autoGenerate: false, initialTab: 1),
+        nav: -1, db: db, height: 3000);
     await db.close();
   });
 

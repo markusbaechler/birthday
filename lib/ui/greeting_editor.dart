@@ -30,7 +30,11 @@ class GreetingEditor extends StatefulWidget {
     required this.person,
     this.incoming,
     this.autoGenerate = true,
+    this.initialTab = 0,
   });
+
+  /// 0 = text, 1 = card.
+  final int initialTab;
   final Person person;
 
   /// Text or image shared from another app, to put into this greeting.
@@ -61,7 +65,7 @@ class _GreetingEditorState extends State<GreetingEditor> {
   var _style = CardStyle.auto;
   String? _error;
   var _time = const TimeOfDay(hour: 9, minute: 0);
-  var _tab = 0;
+  late var _tab = widget.initialTab;
   Timer? _autosave;
   late AppDatabase _db;
 
